@@ -20,6 +20,7 @@ const route = useRoute()
 const user = ref<any>(null)
 const sidebarOpen = ref(false)
 const authReady = ref(false)
+const routerReady = ref(false)
 
 const navigation = [
   { name: 'Dashboard', to: '/dashboard', icon: LayoutDashboard },
@@ -42,6 +43,11 @@ async function handleLogout() {
 }
 
 onMounted(async () => {
+  // Wait for router to be ready first to prevent flash
+  await router.isReady()
+  routerReady.value = true
+
+  // Then check auth
   const { data: { session } } = await supabase.auth.getSession()
   user.value = session?.user || null
   authReady.value = true
@@ -53,8 +59,8 @@ onMounted(async () => {
 </script>
 
 <template>
-  <!-- Loading state - wait for auth check -->
-  <div v-if="!authReady" class="min-h-screen bg-background" />
+  <!-- Loading state - wait for router and auth check -->
+  <div v-if="!authReady || !routerReady" class="min-h-screen bg-background" />
 
   <!-- Public pages (login, landing) - no layout -->
   <RouterView v-else-if="isPublicPage" />

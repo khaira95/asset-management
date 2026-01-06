@@ -223,7 +223,7 @@ onMounted(fetchData)
 </script>
 
 <template>
-  <div class="p-6 lg:p-8 max-w-7xl">
+  <div class="p-6 lg:p-8">
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
       <div class="flex items-center gap-3">
