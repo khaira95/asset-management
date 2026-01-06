@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { supabase } from '@/lib/supabase'
 import type { Staff, Location } from '@/types/database'
-import { Users, Plus, Pencil, Trash2, Mail, Phone } from 'lucide-vue-next'
+import { Users, Plus, Pencil, Trash2, Mail, Phone, MapPin, User } from 'lucide-vue-next'
 import Modal from '@/components/Modal.vue'
 
 interface StaffWithLocation extends Staff {
@@ -140,51 +140,103 @@ onMounted(fetchData)
 </script>
 
 <template>
-  <div class="p-6">
-    <div class="flex items-center justify-between mb-8">
+  <div class="p-6 lg:p-8 max-w-7xl">
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
       <div class="flex items-center gap-3">
-        <Users class="w-8 h-8 text-primary" />
-        <h1 class="text-2xl font-bold">Staff</h1>
+        <div class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+          <Users class="w-5 h-5 text-primary" />
+        </div>
+        <div>
+          <h1 class="text-2xl font-semibold text-foreground tracking-tight">Staff</h1>
+          <p class="text-sm text-muted-foreground">Manage team members</p>
+        </div>
       </div>
       <button
         @click="openCreate"
-        class="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90"
+        class="inline-flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-xl font-medium hover:opacity-90 active:scale-[0.98] transition-all shadow-lg shadow-primary/20"
       >
         <Plus class="w-4 h-4" />
         Add Staff
       </button>
     </div>
 
-    <div v-if="loading" class="text-muted-foreground">Loading...</div>
-
-    <div v-else-if="staffList.length === 0" class="text-center py-12 text-muted-foreground">
-      No staff found. Add your first staff member!
+    <!-- Loading -->
+    <div v-if="loading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div v-for="i in 6" :key="i" class="h-40 bg-card border rounded-2xl animate-pulse" />
     </div>
 
-    <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      <div v-for="staff in staffList" :key="staff.id" class="bg-card border rounded-lg p-4">
-        <div class="flex items-start justify-between">
-          <div class="flex-1">
-            <h3 class="font-semibold">{{ staff.name }}</h3>
-            <p class="text-sm text-muted-foreground">{{ staff.staff_id }}</p>
-            <p v-if="staff.position" class="text-sm mt-1">{{ staff.position }}</p>
-            <p v-if="staff.locations" class="text-sm text-muted-foreground">{{ staff.locations.name }}</p>
-            <div class="mt-3 space-y-1">
-              <p v-if="staff.email" class="flex items-center gap-2 text-sm text-muted-foreground">
-                <Mail class="w-3 h-3" /> {{ staff.email }}
+    <!-- Empty state -->
+    <div v-else-if="staffList.length === 0" class="bg-card border rounded-2xl p-12 text-center">
+      <div class="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
+        <Users class="w-8 h-8 text-primary" />
+      </div>
+      <h3 class="text-lg font-semibold text-foreground mb-2">No staff yet</h3>
+      <p class="text-muted-foreground mb-6">Add team members to assign assets</p>
+      <button
+        @click="openCreate"
+        class="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-xl font-medium hover:opacity-90 transition-all"
+      >
+        <Plus class="w-4 h-4" />
+        Add Staff
+      </button>
+    </div>
+
+    <!-- Grid -->
+    <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 stagger-children">
+      <div
+        v-for="staff in staffList"
+        :key="staff.id"
+        class="group bg-card border rounded-2xl p-5 hover:shadow-lg hover:shadow-black/5 hover:-translate-y-0.5 transition-all duration-300"
+      >
+        <div class="flex items-start gap-4">
+          <!-- Avatar -->
+          <div class="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+            <span class="text-lg font-semibold text-primary">
+              {{ staff.name.charAt(0).toUpperCase() }}
+            </span>
+          </div>
+
+          <div class="flex-1 min-w-0">
+            <div class="flex items-start justify-between">
+              <div>
+                <h3 class="font-semibold text-foreground">{{ staff.name }}</h3>
+                <p class="text-sm text-muted-foreground">{{ staff.staff_id }}</p>
+              </div>
+              <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button
+                  @click="openEdit(staff)"
+                  class="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-all"
+                  title="Edit"
+                >
+                  <Pencil class="w-3.5 h-3.5" />
+                </button>
+                <button
+                  @click="deleteStaff(staff.id)"
+                  class="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-all"
+                  title="Delete"
+                >
+                  <Trash2 class="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+
+            <p v-if="staff.position" class="text-sm text-foreground mt-2">{{ staff.position }}</p>
+
+            <div class="mt-3 space-y-1.5">
+              <p v-if="staff.locations" class="flex items-center gap-2 text-sm text-muted-foreground">
+                <MapPin class="w-3.5 h-3.5" />
+                {{ staff.locations.name }}
+              </p>
+              <p v-if="staff.email" class="flex items-center gap-2 text-sm text-muted-foreground truncate">
+                <Mail class="w-3.5 h-3.5 flex-shrink-0" />
+                {{ staff.email }}
               </p>
               <p v-if="staff.phone_number" class="flex items-center gap-2 text-sm text-muted-foreground">
-                <Phone class="w-3 h-3" /> {{ staff.phone_number }}
+                <Phone class="w-3.5 h-3.5" />
+                {{ staff.phone_number }}
               </p>
             </div>
-          </div>
-          <div class="flex items-center gap-1">
-            <button @click="openEdit(staff)" class="p-1 hover:bg-muted rounded" title="Edit">
-              <Pencil class="w-4 h-4" />
-            </button>
-            <button @click="deleteStaff(staff.id)" class="p-1 hover:bg-muted rounded text-red-500" title="Delete">
-              <Trash2 class="w-4 h-4" />
-            </button>
           </div>
         </div>
       </div>
@@ -197,44 +249,44 @@ onMounted(fetchData)
       size="md"
       @close="closeModal"
     >
-      <form @submit.prevent="saveStaff" class="space-y-4">
+      <form @submit.prevent="saveStaff" class="space-y-5">
         <div class="grid grid-cols-2 gap-4">
-          <div>
-            <label class="block text-sm font-medium mb-2">Name *</label>
+          <div class="space-y-2">
+            <label class="block text-sm font-medium text-foreground">Name *</label>
             <input
               v-model="form.name"
               type="text"
-              class="w-full px-3 py-2 border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+              class="w-full h-11 px-4 bg-background border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
               placeholder="Full name"
               autofocus
             />
           </div>
-          <div>
-            <label class="block text-sm font-medium mb-2">Staff ID *</label>
+          <div class="space-y-2">
+            <label class="block text-sm font-medium text-foreground">Staff ID *</label>
             <input
               v-model="form.staff_id"
               type="text"
-              class="w-full px-3 py-2 border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+              class="w-full h-11 px-4 bg-background border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
               placeholder="e.g. EMP001"
             />
           </div>
         </div>
 
         <div class="grid grid-cols-2 gap-4">
-          <div>
-            <label class="block text-sm font-medium mb-2">Position</label>
+          <div class="space-y-2">
+            <label class="block text-sm font-medium text-foreground">Position</label>
             <input
               v-model="form.position"
               type="text"
-              class="w-full px-3 py-2 border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+              class="w-full h-11 px-4 bg-background border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
               placeholder="Job title"
             />
           </div>
-          <div>
-            <label class="block text-sm font-medium mb-2">Location</label>
+          <div class="space-y-2">
+            <label class="block text-sm font-medium text-foreground">Location</label>
             <select
               v-model="form.location_id"
-              class="w-full px-3 py-2 border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+              class="w-full h-11 px-4 bg-background border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
             >
               <option value="">Select location</option>
               <option v-for="loc in locations" :key="loc.id" :value="loc.id">
@@ -245,40 +297,44 @@ onMounted(fetchData)
         </div>
 
         <div class="grid grid-cols-2 gap-4">
-          <div>
-            <label class="block text-sm font-medium mb-2">Email</label>
+          <div class="space-y-2">
+            <label class="block text-sm font-medium text-foreground">Email</label>
             <input
               v-model="form.email"
               type="email"
-              class="w-full px-3 py-2 border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+              class="w-full h-11 px-4 bg-background border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
               placeholder="email@example.com"
             />
           </div>
-          <div>
-            <label class="block text-sm font-medium mb-2">Phone</label>
+          <div class="space-y-2">
+            <label class="block text-sm font-medium text-foreground">Phone</label>
             <input
               v-model="form.phone_number"
               type="text"
-              class="w-full px-3 py-2 border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+              class="w-full h-11 px-4 bg-background border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
               placeholder="012-3456789"
             />
           </div>
         </div>
 
-        <div v-if="formError" class="text-red-500 text-sm">{{ formError }}</div>
+        <!-- Error -->
+        <div v-if="formError" class="p-3 bg-destructive/10 border border-destructive/20 rounded-xl">
+          <p class="text-sm text-destructive">{{ formError }}</p>
+        </div>
 
-        <div class="flex justify-end gap-2 pt-2">
+        <!-- Actions -->
+        <div class="flex justify-end gap-3 pt-2">
           <button
             type="button"
             @click="closeModal"
-            class="px-4 py-2 border rounded-lg hover:bg-muted"
+            class="px-4 py-2.5 border rounded-xl font-medium text-foreground hover:bg-muted transition-all"
           >
             Cancel
           </button>
           <button
             type="submit"
             :disabled="saving"
-            class="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 disabled:opacity-50"
+            class="px-5 py-2.5 bg-primary text-primary-foreground rounded-xl font-medium hover:opacity-90 disabled:opacity-50 transition-all"
           >
             {{ saving ? 'Saving...' : (editingId ? 'Update' : 'Create') }}
           </button>

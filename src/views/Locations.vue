@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { supabase } from '@/lib/supabase'
 import type { Location } from '@/types/database'
-import { MapPin, Plus, Pencil, Trash2 } from 'lucide-vue-next'
+import { MapPin, Plus, Pencil, Trash2, Building2 } from 'lucide-vue-next'
 import Modal from '@/components/Modal.vue'
 
 const locations = ref<Location[]>([])
@@ -113,40 +113,76 @@ onMounted(fetchLocations)
 </script>
 
 <template>
-  <div class="p-6">
-    <div class="flex items-center justify-between mb-8">
+  <div class="p-6 lg:p-8 max-w-7xl">
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
       <div class="flex items-center gap-3">
-        <MapPin class="w-8 h-8 text-primary" />
-        <h1 class="text-2xl font-bold">Locations</h1>
+        <div class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+          <MapPin class="w-5 h-5 text-primary" />
+        </div>
+        <div>
+          <h1 class="text-2xl font-semibold text-foreground tracking-tight">Locations</h1>
+          <p class="text-sm text-muted-foreground">Manage office locations</p>
+        </div>
       </div>
       <button
         @click="openCreate"
-        class="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90"
+        class="inline-flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-xl font-medium hover:opacity-90 active:scale-[0.98] transition-all shadow-lg shadow-primary/20"
       >
         <Plus class="w-4 h-4" />
         Add Location
       </button>
     </div>
 
-    <div v-if="loading" class="text-muted-foreground">Loading...</div>
-
-    <div v-else-if="locations.length === 0" class="text-center py-12 text-muted-foreground">
-      No locations found. Add your first location!
+    <!-- Loading -->
+    <div v-if="loading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div v-for="i in 8" :key="i" class="h-20 bg-card border rounded-2xl animate-pulse" />
     </div>
 
-    <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-      <div v-for="location in locations" :key="location.id" class="bg-card border rounded-lg p-4">
+    <!-- Empty state -->
+    <div v-else-if="locations.length === 0" class="bg-card border rounded-2xl p-12 text-center">
+      <div class="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
+        <MapPin class="w-8 h-8 text-primary" />
+      </div>
+      <h3 class="text-lg font-semibold text-foreground mb-2">No locations yet</h3>
+      <p class="text-muted-foreground mb-6">Add office locations for staff assignments</p>
+      <button
+        @click="openCreate"
+        class="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-xl font-medium hover:opacity-90 transition-all"
+      >
+        <Plus class="w-4 h-4" />
+        Add Location
+      </button>
+    </div>
+
+    <!-- Grid -->
+    <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 stagger-children">
+      <div
+        v-for="location in locations"
+        :key="location.id"
+        class="group bg-card border rounded-2xl p-4 hover:shadow-lg hover:shadow-black/5 hover:-translate-y-0.5 transition-all duration-300"
+      >
         <div class="flex items-center justify-between">
-          <div class="flex items-center gap-3">
-            <MapPin class="w-5 h-5 text-muted-foreground" />
-            <span class="font-medium">{{ location.name }}</span>
+          <div class="flex items-center gap-3 min-w-0">
+            <div class="w-10 h-10 rounded-xl bg-sky-50 flex items-center justify-center flex-shrink-0">
+              <Building2 class="w-5 h-5 text-sky-600" />
+            </div>
+            <span class="font-medium text-foreground truncate">{{ location.name }}</span>
           </div>
-          <div class="flex items-center gap-1">
-            <button @click="openEdit(location)" class="p-1 hover:bg-muted rounded" title="Edit">
-              <Pencil class="w-4 h-4" />
+          <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
+            <button
+              @click="openEdit(location)"
+              class="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-all"
+              title="Edit"
+            >
+              <Pencil class="w-3.5 h-3.5" />
             </button>
-            <button @click="deleteLocation(location.id)" class="p-1 hover:bg-muted rounded text-red-500" title="Delete">
-              <Trash2 class="w-4 h-4" />
+            <button
+              @click="deleteLocation(location.id)"
+              class="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-all"
+              title="Delete"
+            >
+              <Trash2 class="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
@@ -159,32 +195,36 @@ onMounted(fetchLocations)
       :title="editingId ? 'Edit Location' : 'Add Location'"
       @close="closeModal"
     >
-      <form @submit.prevent="saveLocation" class="space-y-4">
-        <div>
-          <label class="block text-sm font-medium mb-2">Location Name</label>
+      <form @submit.prevent="saveLocation" class="space-y-5">
+        <div class="space-y-2">
+          <label class="block text-sm font-medium text-foreground">Location Name *</label>
           <input
             v-model="form.name"
             type="text"
-            class="w-full px-3 py-2 border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+            class="w-full h-11 px-4 bg-background border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
             placeholder="e.g. HQ Office, Branch A"
             autofocus
           />
         </div>
 
-        <div v-if="formError" class="text-red-500 text-sm">{{ formError }}</div>
+        <!-- Error -->
+        <div v-if="formError" class="p-3 bg-destructive/10 border border-destructive/20 rounded-xl">
+          <p class="text-sm text-destructive">{{ formError }}</p>
+        </div>
 
-        <div class="flex justify-end gap-2 pt-2">
+        <!-- Actions -->
+        <div class="flex justify-end gap-3 pt-2">
           <button
             type="button"
             @click="closeModal"
-            class="px-4 py-2 border rounded-lg hover:bg-muted"
+            class="px-4 py-2.5 border rounded-xl font-medium text-foreground hover:bg-muted transition-all"
           >
             Cancel
           </button>
           <button
             type="submit"
             :disabled="saving"
-            class="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 disabled:opacity-50"
+            class="px-5 py-2.5 bg-primary text-primary-foreground rounded-xl font-medium hover:opacity-90 disabled:opacity-50 transition-all"
           >
             {{ saving ? 'Saving...' : (editingId ? 'Update' : 'Create') }}
           </button>

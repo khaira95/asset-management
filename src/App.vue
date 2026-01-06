@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { supabase } from '@/lib/supabase'
 import {
@@ -11,13 +11,15 @@ import {
   Key,
   LogOut,
   Menu,
-  X
+  X,
+  ChevronRight
 } from 'lucide-vue-next'
 
 const router = useRouter()
 const route = useRoute()
 const user = ref<any>(null)
 const sidebarOpen = ref(false)
+const authReady = ref(false)
 
 const navigation = [
   { name: 'Dashboard', to: '/', icon: LayoutDashboard },
@@ -28,6 +30,8 @@ const navigation = [
   { name: 'Licenses', to: '/licenses', icon: Key },
 ]
 
+const isLoginPage = computed(() => route.name === 'login')
+
 async function handleLogout() {
   await supabase.auth.signOut()
   user.value = null
@@ -37,6 +41,7 @@ async function handleLogout() {
 onMounted(async () => {
   const { data: { session } } = await supabase.auth.getSession()
   user.value = session?.user || null
+  authReady.value = true
 
   supabase.auth.onAuthStateChange((_event, session) => {
     user.value = session?.user || null
@@ -45,60 +50,107 @@ onMounted(async () => {
 </script>
 
 <template>
+  <!-- Loading state - wait for auth check -->
+  <div v-if="!authReady" class="min-h-screen bg-background" />
+
   <!-- Login page - no layout -->
-  <RouterView v-if="route.name === 'login'" />
+  <RouterView v-else-if="isLoginPage" />
 
   <!-- App layout with sidebar -->
   <div v-else class="min-h-screen bg-background">
     <!-- Mobile menu button -->
     <div class="lg:hidden fixed top-4 left-4 z-50">
-      <button @click="sidebarOpen = !sidebarOpen" class="p-2 bg-card border rounded-lg">
+      <button
+        @click="sidebarOpen = !sidebarOpen"
+        class="p-2.5 bg-sidebar text-sidebar-foreground rounded-xl shadow-lg hover:bg-sidebar-muted active:scale-95 transition-all"
+      >
         <Menu v-if="!sidebarOpen" class="w-5 h-5" />
         <X v-else class="w-5 h-5" />
       </button>
     </div>
 
+    <!-- Mobile overlay -->
+    <Transition name="fade">
+      <div
+        v-if="sidebarOpen"
+        class="lg:hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-30"
+        @click="sidebarOpen = false"
+      />
+    </Transition>
+
     <!-- Sidebar -->
     <aside
       :class="[
-        'fixed inset-y-0 left-0 z-40 w-64 bg-card border-r transform transition-transform duration-200 ease-in-out',
+        'fixed inset-y-0 left-0 z-40 w-72 bg-sidebar transform transition-all duration-300 ease-out',
         sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
       ]"
     >
       <div class="flex flex-col h-full">
         <!-- Logo -->
-        <div class="p-6 border-b">
-          <h1 class="text-xl font-bold">Asset Management</h1>
-          <p class="text-sm text-muted-foreground">Vercel + Supabase</p>
+        <div class="p-6 pb-4">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-sidebar-accent flex items-center justify-center">
+              <Package class="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h1 class="text-lg font-semibold text-sidebar-foreground tracking-tight">Asset Manager</h1>
+              <p class="text-xs text-sidebar-foreground/50">Inventory System</p>
+            </div>
+          </div>
         </div>
 
         <!-- Navigation -->
-        <nav class="flex-1 p-4 space-y-1">
+        <nav class="flex-1 px-4 space-y-1 overflow-y-auto">
+          <p class="px-3 py-2 text-[11px] font-medium text-sidebar-foreground/40 uppercase tracking-wider">Menu</p>
           <RouterLink
             v-for="item in navigation"
             :key="item.name"
             :to="item.to"
             @click="sidebarOpen = false"
             :class="[
-              'flex items-center gap-3 px-3 py-2 rounded-lg transition-colors',
+              'group flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200',
               route.path === item.to
-                ? 'bg-primary text-primary-foreground'
-                : 'hover:bg-muted'
+                ? 'bg-sidebar-accent text-white shadow-lg shadow-sidebar-accent/25'
+                : 'text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-muted'
             ]"
           >
-            <component :is="item.icon" class="w-5 h-5" />
-            {{ item.name }}
+            <component
+              :is="item.icon"
+              :class="[
+                'w-[18px] h-[18px] transition-transform duration-200',
+                route.path === item.to ? '' : 'group-hover:scale-110'
+              ]"
+            />
+            <span class="font-medium text-sm">{{ item.name }}</span>
+            <ChevronRight
+              v-if="route.path === item.to"
+              class="w-4 h-4 ml-auto opacity-70"
+            />
           </RouterLink>
         </nav>
 
         <!-- User section -->
-        <div class="p-4 border-t">
-          <div class="flex items-center justify-between">
-            <div class="text-sm truncate">
-              {{ user?.email || 'User' }}
+        <div class="p-4 mx-4 mb-4 rounded-xl bg-sidebar-muted">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-lg bg-sidebar-accent/20 flex items-center justify-center">
+              <span class="text-sm font-semibold text-sidebar-accent">
+                {{ user?.email?.charAt(0).toUpperCase() || 'U' }}
+              </span>
             </div>
-            <button @click="handleLogout" class="p-2 hover:bg-muted rounded-lg" title="Logout">
-              <LogOut class="w-4 h-4" />
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-medium text-sidebar-foreground truncate">
+                {{ user?.email?.split('@')[0] || 'User' }}
+              </p>
+              <p class="text-xs text-sidebar-foreground/50 truncate">
+                {{ user?.email || 'user@example.com' }}
+              </p>
+            </div>
+            <button
+              @click="handleLogout"
+              class="p-2 hover:bg-sidebar-accent/10 rounded-lg transition-colors group"
+              title="Sign out"
+            >
+              <LogOut class="w-4 h-4 text-sidebar-foreground/50 group-hover:text-sidebar-accent transition-colors" />
             </button>
           </div>
         </div>
@@ -106,8 +158,22 @@ onMounted(async () => {
     </aside>
 
     <!-- Main content -->
-    <main class="lg:pl-64">
-      <RouterView />
+    <main class="lg:pl-72 min-h-screen">
+      <div class="animate-fade-in">
+        <RouterView />
+      </div>
     </main>
   </div>
 </template>
+
+<style scoped>
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+</style>

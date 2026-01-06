@@ -2,7 +2,7 @@
 import { ref, onMounted, watch } from 'vue'
 import { supabase } from '@/lib/supabase'
 import type { Asset, Category, Staff } from '@/types/database'
-import { Package, Plus, Pencil, Trash2 } from 'lucide-vue-next'
+import { Package, Plus, Pencil, Trash2, Search, Filter } from 'lucide-vue-next'
 import Modal from '@/components/Modal.vue'
 
 interface AssetWithRelations extends Asset {
@@ -19,6 +19,7 @@ const categories = ref<Category[]>([])
 const staffList = ref<StaffWithLocation[]>([])
 const loading = ref(true)
 const saving = ref(false)
+const searchQuery = ref('')
 
 // Modal state
 const showModal = ref(false)
@@ -34,14 +35,30 @@ const form = ref({
 })
 const formError = ref('')
 
-const statusColors: Record<string, string> = {
-  active: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300',
-  maintenance: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300',
-  inactive: 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300',
-  disposed: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300'
+const statusConfig: Record<string, { label: string; class: string }> = {
+  active: { label: 'Active', class: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  maintenance: { label: 'Maintenance', class: 'bg-amber-50 text-amber-700 border-amber-200' },
+  inactive: { label: 'Inactive', class: 'bg-gray-100 text-gray-600 border-gray-200' },
+  disposed: { label: 'Disposed', class: 'bg-red-50 text-red-700 border-red-200' }
 }
 
 const statusOptions = ['active', 'maintenance', 'inactive', 'disposed']
+
+const filteredAssets = ref<AssetWithRelations[]>([])
+
+watch([assets, searchQuery], () => {
+  if (!searchQuery.value) {
+    filteredAssets.value = assets.value
+  } else {
+    const query = searchQuery.value.toLowerCase()
+    filteredAssets.value = assets.value.filter(a =>
+      a.asset_name.toLowerCase().includes(query) ||
+      a.serial_number?.toLowerCase().includes(query) ||
+      a.categories?.name.toLowerCase().includes(query) ||
+      a.staff?.name.toLowerCase().includes(query)
+    )
+  }
+}, { immediate: true })
 
 // Generate next asset name based on category
 async function generateAssetName(categoryId: number) {
@@ -206,66 +223,130 @@ onMounted(fetchData)
 </script>
 
 <template>
-  <div class="p-6">
-    <div class="flex items-center justify-between mb-8">
+  <div class="p-6 lg:p-8 max-w-7xl">
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
       <div class="flex items-center gap-3">
-        <Package class="w-8 h-8 text-primary" />
-        <h1 class="text-2xl font-bold">Assets</h1>
+        <div class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+          <Package class="w-5 h-5 text-primary" />
+        </div>
+        <div>
+          <h1 class="text-2xl font-semibold text-foreground tracking-tight">Assets</h1>
+          <p class="text-sm text-muted-foreground">Manage your inventory items</p>
+        </div>
       </div>
       <button
         @click="openCreate"
-        class="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90"
+        class="inline-flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-xl font-medium hover:opacity-90 active:scale-[0.98] transition-all shadow-lg shadow-primary/20"
       >
         <Plus class="w-4 h-4" />
         Add Asset
       </button>
     </div>
 
-    <div v-if="loading" class="text-muted-foreground">Loading...</div>
-
-    <div v-else-if="assets.length === 0" class="text-center py-12 text-muted-foreground">
-      No assets found. Create your first asset!
+    <!-- Search bar -->
+    <div class="mb-6">
+      <div class="relative max-w-md">
+        <Search class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <input
+          v-model="searchQuery"
+          type="text"
+          placeholder="Search assets..."
+          class="w-full h-11 pl-11 pr-4 bg-card border rounded-xl text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+        />
+      </div>
     </div>
 
-    <div v-else class="bg-card border rounded-lg overflow-hidden overflow-x-auto">
-      <table class="w-full">
-        <thead class="bg-muted/50">
-          <tr>
-            <th class="px-4 py-3 text-left text-sm font-medium">Asset Name</th>
-            <th class="px-4 py-3 text-left text-sm font-medium">Category</th>
-            <th class="px-4 py-3 text-left text-sm font-medium">Status</th>
-            <th class="px-4 py-3 text-left text-sm font-medium">Assigned To</th>
-            <th class="px-4 py-3 text-left text-sm font-medium">Actions</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y">
-          <tr v-for="asset in assets" :key="asset.id" class="hover:bg-muted/30">
-            <td class="px-4 py-3">
-              <div>
-                <div class="font-medium">{{ asset.asset_name }}</div>
-                <div class="text-sm text-muted-foreground">{{ asset.serial_number || '-' }}</div>
-              </div>
-            </td>
-            <td class="px-4 py-3">{{ asset.categories?.name || '-' }}</td>
-            <td class="px-4 py-3">
-              <span :class="['px-2 py-1 rounded-full text-xs font-medium', statusColors[asset.status]]">
-                {{ asset.status }}
-              </span>
-            </td>
-            <td class="px-4 py-3">{{ asset.staff?.name || '-' }}</td>
-            <td class="px-4 py-3">
-              <div class="flex items-center gap-2">
-                <button @click="openEdit(asset)" class="p-1 hover:bg-muted rounded" title="Edit">
-                  <Pencil class="w-4 h-4" />
-                </button>
-                <button @click="deleteAsset(asset.id)" class="p-1 hover:bg-muted rounded text-red-500" title="Delete">
-                  <Trash2 class="w-4 h-4" />
-                </button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+    <!-- Loading -->
+    <div v-if="loading" class="bg-card border rounded-2xl p-8">
+      <div class="animate-pulse space-y-4">
+        <div class="h-4 bg-muted rounded w-1/4"></div>
+        <div class="h-4 bg-muted rounded w-1/2"></div>
+        <div class="h-4 bg-muted rounded w-1/3"></div>
+      </div>
+    </div>
+
+    <!-- Empty state -->
+    <div v-else-if="assets.length === 0" class="bg-card border rounded-2xl p-12 text-center">
+      <div class="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
+        <Package class="w-8 h-8 text-primary" />
+      </div>
+      <h3 class="text-lg font-semibold text-foreground mb-2">No assets yet</h3>
+      <p class="text-muted-foreground mb-6">Get started by adding your first asset</p>
+      <button
+        @click="openCreate"
+        class="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-xl font-medium hover:opacity-90 transition-all"
+      >
+        <Plus class="w-4 h-4" />
+        Add Asset
+      </button>
+    </div>
+
+    <!-- Table -->
+    <div v-else class="bg-card border rounded-2xl overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead>
+            <tr class="border-b bg-muted/30">
+              <th class="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Asset</th>
+              <th class="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Category</th>
+              <th class="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Status</th>
+              <th class="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Assigned To</th>
+              <th class="px-6 py-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">Actions</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y">
+            <tr
+              v-for="asset in filteredAssets"
+              :key="asset.id"
+              class="group hover:bg-muted/30 transition-colors"
+            >
+              <td class="px-6 py-4">
+                <div>
+                  <p class="font-medium text-foreground">{{ asset.asset_name }}</p>
+                  <p class="text-sm text-muted-foreground">{{ asset.serial_number || 'No serial' }}</p>
+                </div>
+              </td>
+              <td class="px-6 py-4">
+                <span class="text-sm text-foreground">{{ asset.categories?.name || '-' }}</span>
+              </td>
+              <td class="px-6 py-4">
+                <span :class="['inline-flex px-2.5 py-1 text-xs font-medium rounded-lg border', statusConfig[asset.status]?.class]">
+                  {{ statusConfig[asset.status]?.label }}
+                </span>
+              </td>
+              <td class="px-6 py-4">
+                <span class="text-sm text-foreground">{{ asset.staff?.name || '-' }}</span>
+              </td>
+              <td class="px-6 py-4">
+                <div class="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    @click="openEdit(asset)"
+                    class="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-all"
+                    title="Edit"
+                  >
+                    <Pencil class="w-4 h-4" />
+                  </button>
+                  <button
+                    @click="deleteAsset(asset.id)"
+                    class="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-all"
+                    title="Delete"
+                  >
+                    <Trash2 class="w-4 h-4" />
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Table footer -->
+      <div class="px-6 py-4 border-t bg-muted/20">
+        <p class="text-sm text-muted-foreground">
+          Showing {{ filteredAssets.length }} of {{ assets.length }} assets
+        </p>
+      </div>
     </div>
 
     <!-- Create/Edit Modal -->
@@ -275,13 +356,13 @@ onMounted(fetchData)
       size="lg"
       @close="closeModal"
     >
-      <form @submit.prevent="saveAsset" class="space-y-4">
+      <form @submit.prevent="saveAsset" class="space-y-5">
         <div class="grid grid-cols-2 gap-4">
-          <div>
-            <label class="block text-sm font-medium mb-2">Category *</label>
+          <div class="space-y-2">
+            <label class="block text-sm font-medium text-foreground">Category *</label>
             <select
               v-model="form.category_id"
-              class="w-full px-3 py-2 border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+              class="w-full h-11 px-4 bg-background border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
             >
               <option value="">Select category</option>
               <option v-for="cat in categories" :key="cat.id" :value="cat.id">
@@ -289,34 +370,34 @@ onMounted(fetchData)
               </option>
             </select>
           </div>
-          <div>
-            <label class="block text-sm font-medium mb-2">Asset Name *</label>
+          <div class="space-y-2">
+            <label class="block text-sm font-medium text-foreground">Asset Name *</label>
             <input
               v-model="form.asset_name"
               type="text"
-              class="w-full px-3 py-2 border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary"
-              placeholder="Auto-generated from category"
-              :readonly="!editingId"
+              class="w-full h-11 px-4 bg-background border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all disabled:opacity-60"
+              placeholder="Auto-generated"
+              :disabled="!editingId"
             />
-            <p v-if="!editingId" class="text-xs text-muted-foreground mt-1">Auto-generated when you select a category</p>
+            <p v-if="!editingId" class="text-xs text-muted-foreground">Auto-generated from category</p>
           </div>
         </div>
 
         <div class="grid grid-cols-2 gap-4">
-          <div>
-            <label class="block text-sm font-medium mb-2">Serial Number</label>
+          <div class="space-y-2">
+            <label class="block text-sm font-medium text-foreground">Serial Number</label>
             <input
               v-model="form.serial_number"
               type="text"
-              class="w-full px-3 py-2 border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+              class="w-full h-11 px-4 bg-background border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
               placeholder="e.g. SN123456789"
             />
           </div>
-          <div>
-            <label class="block text-sm font-medium mb-2">Status</label>
+          <div class="space-y-2">
+            <label class="block text-sm font-medium text-foreground">Status</label>
             <select
               v-model="form.status"
-              class="w-full px-3 py-2 border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+              class="w-full h-11 px-4 bg-background border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
             >
               <option v-for="status in statusOptions" :key="status" :value="status">
                 {{ status.charAt(0).toUpperCase() + status.slice(1) }}
@@ -326,11 +407,11 @@ onMounted(fetchData)
         </div>
 
         <div class="grid grid-cols-2 gap-4">
-          <div>
-            <label class="block text-sm font-medium mb-2">Assigned To</label>
+          <div class="space-y-2">
+            <label class="block text-sm font-medium text-foreground">Assigned To</label>
             <select
               v-model="form.staff_id"
-              class="w-full px-3 py-2 border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+              class="w-full h-11 px-4 bg-background border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
             >
               <option value="">Unassigned</option>
               <option v-for="staff in staffList" :key="staff.id" :value="staff.id">
@@ -338,40 +419,44 @@ onMounted(fetchData)
               </option>
             </select>
           </div>
-          <div>
-            <label class="block text-sm font-medium mb-2">Purchase Date</label>
+          <div class="space-y-2">
+            <label class="block text-sm font-medium text-foreground">Purchase Date</label>
             <input
               v-model="form.purchase_date"
               type="date"
-              class="w-full px-3 py-2 border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+              class="w-full h-11 px-4 bg-background border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
             />
           </div>
         </div>
 
-        <div>
-          <label class="block text-sm font-medium mb-2">Description</label>
+        <div class="space-y-2">
+          <label class="block text-sm font-medium text-foreground">Description</label>
           <textarea
             v-model="form.description"
             rows="2"
-            class="w-full px-3 py-2 border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary resize-none"
-            placeholder="Additional notes about this asset"
+            class="w-full px-4 py-3 bg-background border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all resize-none"
+            placeholder="Additional notes..."
           />
         </div>
 
-        <div v-if="formError" class="text-red-500 text-sm">{{ formError }}</div>
+        <!-- Error -->
+        <div v-if="formError" class="p-3 bg-destructive/10 border border-destructive/20 rounded-xl">
+          <p class="text-sm text-destructive">{{ formError }}</p>
+        </div>
 
-        <div class="flex justify-end gap-2 pt-2">
+        <!-- Actions -->
+        <div class="flex justify-end gap-3 pt-2">
           <button
             type="button"
             @click="closeModal"
-            class="px-4 py-2 border rounded-lg hover:bg-muted"
+            class="px-4 py-2.5 border rounded-xl font-medium text-foreground hover:bg-muted transition-all"
           >
             Cancel
           </button>
           <button
             type="submit"
             :disabled="saving"
-            class="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 disabled:opacity-50"
+            class="px-5 py-2.5 bg-primary text-primary-foreground rounded-xl font-medium hover:opacity-90 disabled:opacity-50 transition-all"
           >
             {{ saving ? 'Saving...' : (editingId ? 'Update' : 'Create') }}
           </button>

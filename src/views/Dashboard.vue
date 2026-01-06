@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { supabase } from '@/lib/supabase'
-import { LayoutDashboard, Package, Users, MapPin, Key, AlertTriangle } from 'lucide-vue-next'
+import { LayoutDashboard, Package, Users, MapPin, Key, AlertTriangle, TrendingUp, ArrowUpRight } from 'lucide-vue-next'
 
 interface Stats {
   totalAssets: number
@@ -26,12 +26,48 @@ const stats = ref<Stats>({
 const loading = ref(true)
 
 const statCards = computed(() => [
-  { label: 'Total Assets', value: stats.value.totalAssets, icon: Package, color: 'bg-blue-500' },
-  { label: 'Active Assets', value: stats.value.activeAssets, icon: Package, color: 'bg-green-500' },
-  { label: 'Maintenance', value: stats.value.maintenanceAssets, icon: AlertTriangle, color: 'bg-yellow-500' },
-  { label: 'Staff', value: stats.value.totalStaff, icon: Users, color: 'bg-purple-500' },
-  { label: 'Locations', value: stats.value.totalLocations, icon: MapPin, color: 'bg-indigo-500' },
-  { label: 'Licenses', value: stats.value.totalLicenses, icon: Key, color: 'bg-pink-500' },
+  {
+    label: 'Total Assets',
+    value: stats.value.totalAssets,
+    icon: Package,
+    color: 'bg-primary/10 text-primary',
+    iconBg: 'bg-primary'
+  },
+  {
+    label: 'Active',
+    value: stats.value.activeAssets,
+    icon: TrendingUp,
+    color: 'bg-emerald-50 text-emerald-600',
+    iconBg: 'bg-emerald-500'
+  },
+  {
+    label: 'Maintenance',
+    value: stats.value.maintenanceAssets,
+    icon: AlertTriangle,
+    color: 'bg-amber-50 text-amber-600',
+    iconBg: 'bg-amber-500'
+  },
+  {
+    label: 'Staff',
+    value: stats.value.totalStaff,
+    icon: Users,
+    color: 'bg-violet-50 text-violet-600',
+    iconBg: 'bg-violet-500'
+  },
+  {
+    label: 'Locations',
+    value: stats.value.totalLocations,
+    icon: MapPin,
+    color: 'bg-sky-50 text-sky-600',
+    iconBg: 'bg-sky-500'
+  },
+  {
+    label: 'Licenses',
+    value: stats.value.totalLicenses,
+    icon: Key,
+    color: 'bg-rose-50 text-rose-600',
+    iconBg: 'bg-rose-500'
+  },
 ])
 
 async function fetchStats() {
@@ -71,35 +107,75 @@ onMounted(fetchStats)
 </script>
 
 <template>
-  <div class="p-6">
-    <div class="flex items-center gap-3 mb-8">
-      <LayoutDashboard class="w-8 h-8 text-primary" />
-      <h1 class="text-2xl font-bold">Dashboard</h1>
+  <div class="p-6 lg:p-8 max-w-7xl">
+    <!-- Header -->
+    <div class="mb-8">
+      <div class="flex items-center gap-3 mb-2">
+        <div class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+          <LayoutDashboard class="w-5 h-5 text-primary" />
+        </div>
+        <div>
+          <h1 class="text-2xl font-semibold text-foreground tracking-tight">Dashboard</h1>
+          <p class="text-sm text-muted-foreground">Overview of your asset inventory</p>
+        </div>
+      </div>
     </div>
 
-    <div v-if="loading" class="text-muted-foreground">Loading...</div>
+    <!-- Loading state -->
+    <div v-if="loading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div v-for="i in 6" :key="i" class="h-32 bg-card border rounded-2xl animate-pulse" />
+    </div>
 
-    <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <!-- Stats grid -->
+    <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 stagger-children">
       <div
         v-for="stat in statCards"
         :key="stat.label"
-        class="bg-card border rounded-lg p-6 flex items-center gap-4"
+        class="group bg-card border rounded-2xl p-5 hover:shadow-lg hover:shadow-black/5 hover:-translate-y-0.5 transition-all duration-300 cursor-default"
       >
-        <div :class="[stat.color, 'p-3 rounded-lg']">
-          <component :is="stat.icon" class="w-6 h-6 text-white" />
+        <div class="flex items-start justify-between">
+          <div :class="['w-11 h-11 rounded-xl flex items-center justify-center', stat.iconBg]">
+            <component :is="stat.icon" class="w-5 h-5 text-white" />
+          </div>
+          <ArrowUpRight class="w-4 h-4 text-muted-foreground/40 group-hover:text-primary group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" />
         </div>
-        <div>
-          <p class="text-sm text-muted-foreground">{{ stat.label }}</p>
-          <p class="text-2xl font-bold">{{ stat.value }}</p>
+        <div class="mt-4">
+          <p class="text-3xl font-semibold text-foreground tracking-tight">{{ stat.value }}</p>
+          <p class="text-sm text-muted-foreground mt-1">{{ stat.label }}</p>
         </div>
       </div>
     </div>
 
-    <div v-if="stats.expiringLicenses > 0" class="mt-6 p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
-      <div class="flex items-center gap-2 text-yellow-600 dark:text-yellow-400">
-        <AlertTriangle class="w-5 h-5" />
-        <span class="font-medium">{{ stats.expiringLicenses }} license(s) expiring within 30 days</span>
+    <!-- Alert -->
+    <Transition name="slide">
+      <div
+        v-if="!loading && stats.expiringLicenses > 0"
+        class="mt-6 p-4 bg-amber-50 border border-amber-200 rounded-2xl animate-slide-up"
+        style="animation-delay: 400ms"
+      >
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-amber-500 flex items-center justify-center flex-shrink-0">
+            <AlertTriangle class="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <p class="font-medium text-amber-800">License Expiration Warning</p>
+            <p class="text-sm text-amber-700 mt-0.5">
+              {{ stats.expiringLicenses }} license{{ stats.expiringLicenses > 1 ? 's' : '' }} expiring within 30 days
+            </p>
+          </div>
+        </div>
       </div>
-    </div>
+    </Transition>
   </div>
 </template>
+
+<style scoped>
+.slide-enter-active {
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.slide-enter-from {
+  opacity: 0;
+  transform: translateY(12px);
+}
+</style>
