@@ -6,15 +6,21 @@ const router = createRouter({
   routes: [
     {
       path: '/',
-      name: 'dashboard',
-      component: () => import('@/views/Dashboard.vue'),
-      meta: { requiresAuth: true }
+      name: 'landing',
+      component: () => import('@/views/Landing.vue'),
+      meta: { guest: true }
     },
     {
       path: '/login',
       name: 'login',
       component: () => import('@/views/Login.vue'),
       meta: { guest: true }
+    },
+    {
+      path: '/dashboard',
+      name: 'dashboard',
+      component: () => import('@/views/Dashboard.vue'),
+      meta: { requiresAuth: true }
     },
     {
       path: '/assets',

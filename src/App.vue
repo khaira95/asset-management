@@ -22,7 +22,7 @@ const sidebarOpen = ref(false)
 const authReady = ref(false)
 
 const navigation = [
-  { name: 'Dashboard', to: '/', icon: LayoutDashboard },
+  { name: 'Dashboard', to: '/dashboard', icon: LayoutDashboard },
   { name: 'Assets', to: '/assets', icon: Package },
   { name: 'Categories', to: '/categories', icon: FolderTree },
   { name: 'Staff', to: '/staff', icon: Users },
@@ -30,7 +30,10 @@ const navigation = [
   { name: 'Licenses', to: '/licenses', icon: Key },
 ]
 
-const isLoginPage = computed(() => route.name === 'login')
+// Pages that should NOT show the app layout (sidebar)
+const isPublicPage = computed(() => {
+  return route.name === 'login' || route.name === 'landing'
+})
 
 async function handleLogout() {
   await supabase.auth.signOut()
@@ -53,21 +56,27 @@ onMounted(async () => {
   <!-- Loading state - wait for auth check -->
   <div v-if="!authReady" class="min-h-screen bg-background" />
 
-  <!-- Login page - no layout -->
-  <RouterView v-else-if="isLoginPage" />
+  <!-- Public pages (login, landing) - no layout -->
+  <RouterView v-else-if="isPublicPage" />
 
   <!-- App layout with sidebar -->
   <div v-else class="min-h-screen bg-background">
-    <!-- Mobile menu button -->
-    <div class="lg:hidden fixed top-4 left-4 z-50">
+    <!-- Mobile Header -->
+    <header class="lg:hidden fixed top-0 left-0 right-0 z-50 h-14 bg-card border-b flex items-center px-4 gap-3">
       <button
         @click="sidebarOpen = !sidebarOpen"
-        class="p-2.5 bg-sidebar text-sidebar-foreground rounded-xl shadow-lg hover:bg-sidebar-muted active:scale-95 transition-all"
+        class="p-2 -ml-2 text-foreground hover:bg-muted rounded-lg transition-colors"
       >
         <Menu v-if="!sidebarOpen" class="w-5 h-5" />
         <X v-else class="w-5 h-5" />
       </button>
-    </div>
+      <div class="flex items-center gap-2">
+        <div class="w-7 h-7 rounded-lg bg-primary flex items-center justify-center">
+          <Package class="w-4 h-4 text-primary-foreground" />
+        </div>
+        <span class="font-semibold text-foreground text-sm">Asset Manager</span>
+      </div>
+    </header>
 
     <!-- Mobile overlay -->
     <Transition name="fade">
@@ -158,7 +167,7 @@ onMounted(async () => {
     </aside>
 
     <!-- Main content -->
-    <main class="lg:pl-72 min-h-screen">
+    <main class="lg:pl-72 pt-14 lg:pt-0 min-h-screen">
       <div class="animate-fade-in">
         <RouterView />
       </div>
