@@ -100,7 +100,7 @@ onMounted(async () => {
         sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
       ]"
     >
-      <div class="flex flex-col h-full">
+      <div class="flex flex-col h-full pt-14 lg:pt-0">
         <!-- Logo -->
         <div class="p-6 pb-4">
           <div class="flex items-center gap-3">
