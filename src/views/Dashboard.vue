@@ -88,14 +88,10 @@ interface MonthlyData {
 }
 
 const monthlyData = ref<MonthlyData[]>([])
-// For clustered chart, get max of any individual status value
+// Use total assets as max for bar height scaling
 const maxMonthly = computed(() => {
   if (monthlyData.value.length === 0) return 1
-  let max = 0
-  monthlyData.value.forEach(d => {
-    max = Math.max(max, d.active, d.maintenance, d.inactive, d.disposed)
-  })
-  return max || 1
+  return Math.max(...monthlyData.value.map(d => d.total), 1)
 })
 
 async function fetchMonthlyData() {
@@ -110,6 +106,9 @@ async function fetchMonthlyData() {
 
     const assets = assetsRes.data || []
     const history = historyRes.data || []
+
+    // Debug: log history data
+    console.log('Status history from DB:', history)
 
     // Get last 6 months
     const months: MonthlyData[] = []
@@ -126,6 +125,16 @@ async function fetchMonthlyData() {
         disposed: 0,
         total: 0
       })
+    }
+
+    // Helper to parse date (handles both DATE and TIMESTAMP formats)
+    const parseDate = (dateStr: string) => {
+      if (!dateStr) return null
+      // If it's just a date (YYYY-MM-DD), add time to avoid timezone issues
+      if (dateStr.length === 10) {
+        return new Date(dateStr + 'T12:00:00')
+      }
+      return new Date(dateStr)
     }
 
     // For each month, calculate asset status at end of that month
@@ -146,15 +155,15 @@ async function fetchMonthlyData() {
         // Use effective_date if available, otherwise fall back to created_at
         const assetHistory = history.filter(h => {
           if (h.asset_id !== asset.id) return false
-          const historyDate = h.effective_date ? new Date(h.effective_date) : new Date(h.created_at)
-          return historyDate <= monthEnd
+          const historyDate = h.effective_date ? parseDate(h.effective_date) : new Date(h.created_at)
+          return historyDate && historyDate <= monthEnd
         })
 
         // Sort by effective_date/created_at to apply in order
         assetHistory.sort((a, b) => {
-          const dateA = a.effective_date ? new Date(a.effective_date) : new Date(a.created_at)
-          const dateB = b.effective_date ? new Date(b.effective_date) : new Date(b.created_at)
-          return dateA.getTime() - dateB.getTime()
+          const dateA = a.effective_date ? parseDate(a.effective_date) : new Date(a.created_at)
+          const dateB = b.effective_date ? parseDate(b.effective_date) : new Date(b.created_at)
+          return (dateA?.getTime() || 0) - (dateB?.getTime() || 0)
         })
 
         // Apply each status change in order
@@ -176,6 +185,9 @@ async function fetchMonthlyData() {
         else if (statusAtMonth === 'disposed') monthData.disposed++
       })
     })
+
+    // Debug: log calculated monthly data
+    console.log('Monthly data calculated:', months)
 
     monthlyData.value = months
   } catch (error) {
