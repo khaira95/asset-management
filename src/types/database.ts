@@ -181,6 +181,7 @@ export interface Database {
           old_value: string | null
           new_value: string | null
           change_type: string
+          effective_date: string | null
           created_at: string
         }
         Insert: {
@@ -191,6 +192,7 @@ export interface Database {
           old_value?: string | null
           new_value?: string | null
           change_type: string
+          effective_date?: string | null
           created_at?: string
         }
         Update: {
@@ -201,6 +203,7 @@ export interface Database {
           old_value?: string | null
           new_value?: string | null
           change_type?: string
+          effective_date?: string | null
           created_at?: string
         }
       }

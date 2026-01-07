@@ -88,14 +88,22 @@ interface MonthlyData {
 }
 
 const monthlyData = ref<MonthlyData[]>([])
-const maxMonthly = computed(() => Math.max(...monthlyData.value.map(d => d.total), 1))
+// For clustered chart, get max of any individual status value
+const maxMonthly = computed(() => {
+  if (monthlyData.value.length === 0) return 1
+  let max = 0
+  monthlyData.value.forEach(d => {
+    max = Math.max(max, d.active, d.maintenance, d.inactive, d.disposed)
+  })
+  return max || 1
+})
 
 async function fetchMonthlyData() {
   try {
     // Get all assets with their current status and created_at
     const [assetsRes, historyRes] = await Promise.all([
       supabase.from('assets').select('id, status, created_at').order('created_at', { ascending: true }),
-      supabase.from('asset_history').select('asset_id, old_value, new_value, created_at').eq('field_name', 'status').order('created_at', { ascending: true })
+      supabase.from('asset_history').select('asset_id, old_value, new_value, effective_date, created_at').eq('field_name', 'status').order('created_at', { ascending: true })
     ])
 
     if (assetsRes.error) throw assetsRes.error
@@ -135,9 +143,19 @@ async function fetchMonthlyData() {
         let statusAtMonth = 'active'
 
         // Get all history for this asset up to monthEnd
-        const assetHistory = history.filter(h =>
-          h.asset_id === asset.id && new Date(h.created_at) <= monthEnd
-        )
+        // Use effective_date if available, otherwise fall back to created_at
+        const assetHistory = history.filter(h => {
+          if (h.asset_id !== asset.id) return false
+          const historyDate = h.effective_date ? new Date(h.effective_date) : new Date(h.created_at)
+          return historyDate <= monthEnd
+        })
+
+        // Sort by effective_date/created_at to apply in order
+        assetHistory.sort((a, b) => {
+          const dateA = a.effective_date ? new Date(a.effective_date) : new Date(a.created_at)
+          const dateB = b.effective_date ? new Date(b.effective_date) : new Date(b.created_at)
+          return dateA.getTime() - dateB.getTime()
+        })
 
         // Apply each status change in order
         assetHistory.forEach(h => {
@@ -362,7 +380,7 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- Asset Trends Chart -->
+      <!-- Asset Trends Chart - Clustered Column -->
       <div class="bg-card border rounded-xl p-5 mt-4">
         <div class="flex items-start justify-between mb-3">
           <div>
@@ -390,60 +408,55 @@ onMounted(() => {
           </div>
         </div>
 
-        <!-- Stacked Bar Chart with Labels -->
-        <div v-if="monthlyData.length === 0" class="flex items-center justify-center h-40">
+        <!-- Clustered Column Chart -->
+        <div v-if="monthlyData.length === 0" class="flex items-center justify-center h-44">
           <p class="text-sm text-muted-foreground">Loading...</p>
         </div>
-        <div v-else class="flex items-end justify-between gap-2 h-40">
+        <div v-else class="flex items-end gap-1 h-44">
           <div
             v-for="data in monthlyData"
             :key="`${data.month}-${data.year}`"
-            class="flex-1 flex flex-col items-center gap-1"
+            class="flex-1 flex flex-col"
           >
-            <!-- Stacked bar with labels -->
-            <div class="w-full h-full flex flex-col justify-end">
-              <div
-                class="w-full flex flex-col-reverse rounded-t-lg overflow-hidden"
-                :style="{ height: `${(data.total / maxMonthly) * 100}%`, minHeight: data.total > 0 ? '20px' : '0' }"
-              >
-                <!-- Active (bottom) -->
+            <!-- Clustered bars for each status -->
+            <div class="flex-1 flex items-end justify-center gap-0.5 px-0.5">
+              <!-- Active -->
+              <div class="flex-1 flex flex-col items-center justify-end h-full max-w-6">
+                <span v-if="data.active > 0" class="text-[9px] font-medium text-emerald-600 mb-0.5">{{ data.active }}</span>
                 <div
-                  v-if="data.active > 0"
-                  class="w-full bg-emerald-500 flex items-center justify-center"
-                  :style="{ height: `${(data.active / data.total) * 100}%`, minHeight: '18px' }"
-                >
-                  <span class="text-[10px] font-medium text-white">{{ data.active }}</span>
-                </div>
-                <!-- Maintenance -->
+                  class="w-full bg-emerald-500 rounded-t transition-all duration-300"
+                  :style="{ height: `${(data.active / maxMonthly) * 100}%`, minHeight: data.active > 0 ? '4px' : '0' }"
+                ></div>
+              </div>
+              <!-- Maintenance -->
+              <div class="flex-1 flex flex-col items-center justify-end h-full max-w-6">
+                <span v-if="data.maintenance > 0" class="text-[9px] font-medium text-amber-600 mb-0.5">{{ data.maintenance }}</span>
                 <div
-                  v-if="data.maintenance > 0"
-                  class="w-full bg-amber-500 flex items-center justify-center"
-                  :style="{ height: `${(data.maintenance / data.total) * 100}%`, minHeight: '18px' }"
-                >
-                  <span class="text-[10px] font-medium text-white">{{ data.maintenance }}</span>
-                </div>
-                <!-- Inactive -->
+                  class="w-full bg-amber-500 rounded-t transition-all duration-300"
+                  :style="{ height: `${(data.maintenance / maxMonthly) * 100}%`, minHeight: data.maintenance > 0 ? '4px' : '0' }"
+                ></div>
+              </div>
+              <!-- Inactive -->
+              <div class="flex-1 flex flex-col items-center justify-end h-full max-w-6">
+                <span v-if="data.inactive > 0" class="text-[9px] font-medium text-gray-500 mb-0.5">{{ data.inactive }}</span>
                 <div
-                  v-if="data.inactive > 0"
-                  class="w-full bg-gray-400 flex items-center justify-center"
-                  :style="{ height: `${(data.inactive / data.total) * 100}%`, minHeight: '18px' }"
-                >
-                  <span class="text-[10px] font-medium text-white">{{ data.inactive }}</span>
-                </div>
-                <!-- Disposed (top) -->
+                  class="w-full bg-gray-400 rounded-t transition-all duration-300"
+                  :style="{ height: `${(data.inactive / maxMonthly) * 100}%`, minHeight: data.inactive > 0 ? '4px' : '0' }"
+                ></div>
+              </div>
+              <!-- Disposed -->
+              <div class="flex-1 flex flex-col items-center justify-end h-full max-w-6">
+                <span v-if="data.disposed > 0" class="text-[9px] font-medium text-red-600 mb-0.5">{{ data.disposed }}</span>
                 <div
-                  v-if="data.disposed > 0"
-                  class="w-full bg-red-500 flex items-center justify-center"
-                  :style="{ height: `${(data.disposed / data.total) * 100}%`, minHeight: '18px' }"
-                >
-                  <span class="text-[10px] font-medium text-white">{{ data.disposed }}</span>
-                </div>
+                  class="w-full bg-red-500 rounded-t transition-all duration-300"
+                  :style="{ height: `${(data.disposed / maxMonthly) * 100}%`, minHeight: data.disposed > 0 ? '4px' : '0' }"
+                ></div>
               </div>
             </div>
             <!-- Month Labels -->
-            <div class="text-center pt-1 border-t border-border w-full">
-              <span class="text-xs text-muted-foreground block">{{ data.month }}</span>
-              <span class="text-[10px] text-muted-foreground/60">{{ data.year }}</span>
+            <div class="text-center pt-1.5 mt-1 border-t border-border">
+              <span class="text-[10px] text-muted-foreground block leading-tight">{{ data.month }}</span>
+              <span class="text-[9px] text-muted-foreground/60">{{ data.year }}</span>
             </div>
           </div>
         </div>

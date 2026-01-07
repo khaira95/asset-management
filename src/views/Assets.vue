@@ -375,9 +375,9 @@ async function trackChanges(assetId: number, oldAsset: AssetWithRelations, newDa
         change_type: 'update'
       }
 
-      // Use custom date if provided (for status changes)
+      // Use effective_date for status changes (the date when status actually changed)
       if (change.custom_date) {
-        insertData.created_at = new Date(change.custom_date + 'T12:00:00').toISOString()
+        insertData.effective_date = change.custom_date
       }
 
       const { error } = await supabase.from('asset_history').insert(insertData)
