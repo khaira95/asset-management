@@ -458,7 +458,7 @@ onMounted(() => {
         </div>
 
         <!-- Clustered Column Chart -->
-        <div v-if="monthlyData.length === 0" class="flex items-center justify-center h-56">
+        <div v-if="monthlyData.length === 0" class="flex items-center justify-center h-90">
           <p class="text-sm text-muted-foreground">Loading...</p>
         </div>
         <div v-else class="h-64">
@@ -523,33 +523,69 @@ onMounted(() => {
       <div class="grid lg:grid-cols-2 gap-6">
         <!-- Asset Status -->
         <div class="bg-card border rounded-xl p-5">
-          <div class="flex items-center gap-4 mb-6">
-            <div class="relative w-16 h-16">
-              <svg class="w-full h-full -rotate-90" viewBox="0 0 100 100">
-                <circle cx="50" cy="50" r="40" fill="none" stroke="currentColor" stroke-width="10" class="text-muted" />
-                <circle cx="50" cy="50" r="40" fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="round" class="text-emerald-500" :stroke-dasharray="`${assetDistribution[0].percent * 2.51} 251`" />
-              </svg>
-              <div class="absolute inset-0 flex flex-col items-center justify-center">
-                <span class="text-xl font-bold text-foreground">{{ stats.totalAssets }}</span>
-                <span class="text-[8px] text-muted-foreground">Total</span>
-              </div>
-            </div>
+          <div class="flex items-center justify-between mb-5">
             <div>
               <h3 class="font-semibold text-foreground">Asset Status</h3>
               <p class="text-xs text-muted-foreground">Current distribution</p>
             </div>
+            <div class="text-right">
+              <span class="text-2xl font-bold text-foreground">{{ stats.totalAssets }}</span>
+              <p class="text-xs text-muted-foreground">Total Assets</p>
+            </div>
           </div>
-          <div class="grid grid-cols-2 gap-x-8 gap-y-4">
-            <div
-              v-for="item in assetDistribution"
-              :key="item.label"
-              class="flex items-center justify-between"
-            >
-              <div class="flex items-center gap-2">
-                <div :class="['w-2.5 h-2.5 rounded-full', item.color]" />
-                <span class="text-sm text-muted-foreground">{{ item.label }}</span>
+
+          <!-- Status cards -->
+          <div class="grid grid-cols-2 gap-3">
+            <div class="p-3 rounded-xl bg-emerald-50 border border-emerald-100">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <div class="w-2 h-2 rounded-full bg-emerald-500"></div>
+                  <span class="text-sm text-emerald-700">Active</span>
+                </div>
+                <span class="text-lg font-bold text-emerald-600">{{ stats.activeAssets }}</span>
               </div>
-              <span class="text-sm font-semibold text-foreground">{{ item.value }}</span>
+              <div class="mt-2 h-1.5 bg-emerald-100 rounded-full overflow-hidden">
+                <div class="h-full bg-emerald-500 rounded-full transition-all duration-500" :style="{ width: `${stats.totalAssets ? (stats.activeAssets / stats.totalAssets) * 100 : 0}%` }"></div>
+              </div>
+            </div>
+
+            <div class="p-3 rounded-xl bg-amber-50 border border-amber-100">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <div class="w-2 h-2 rounded-full bg-amber-500"></div>
+                  <span class="text-sm text-amber-700">Maintenance</span>
+                </div>
+                <span class="text-lg font-bold text-amber-600">{{ stats.maintenanceAssets }}</span>
+              </div>
+              <div class="mt-2 h-1.5 bg-amber-100 rounded-full overflow-hidden">
+                <div class="h-full bg-amber-500 rounded-full transition-all duration-500" :style="{ width: `${stats.totalAssets ? (stats.maintenanceAssets / stats.totalAssets) * 100 : 0}%` }"></div>
+              </div>
+            </div>
+
+            <div class="p-3 rounded-xl bg-gray-50 border border-gray-200">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <div class="w-2 h-2 rounded-full bg-gray-400"></div>
+                  <span class="text-sm text-gray-600">Inactive</span>
+                </div>
+                <span class="text-lg font-bold text-gray-600">{{ stats.inactiveAssets }}</span>
+              </div>
+              <div class="mt-2 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                <div class="h-full bg-gray-400 rounded-full transition-all duration-500" :style="{ width: `${stats.totalAssets ? (stats.inactiveAssets / stats.totalAssets) * 100 : 0}%` }"></div>
+              </div>
+            </div>
+
+            <div class="p-3 rounded-xl bg-red-50 border border-red-100">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <div class="w-2 h-2 rounded-full bg-red-500"></div>
+                  <span class="text-sm text-red-700">Disposed</span>
+                </div>
+                <span class="text-lg font-bold text-red-600">{{ stats.disposedAssets }}</span>
+              </div>
+              <div class="mt-2 h-1.5 bg-red-100 rounded-full overflow-hidden">
+                <div class="h-full bg-red-500 rounded-full transition-all duration-500" :style="{ width: `${stats.totalAssets ? (stats.disposedAssets / stats.totalAssets) * 100 : 0}%` }"></div>
+              </div>
             </div>
           </div>
         </div>
