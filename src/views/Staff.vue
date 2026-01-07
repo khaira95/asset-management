@@ -435,11 +435,11 @@ onMounted(fetchData)
     <!-- Grid -->
     <div v-else class="flex-1 flex flex-col min-h-0">
       <div class="flex-1 overflow-auto">
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 stagger-children">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 stagger-children auto-rows-fr">
           <div
             v-for="staff in paginatedStaff"
             :key="staff.id"
-            class="group bg-card border rounded-2xl p-5 hover:shadow-lg hover:shadow-black/5 hover:-translate-y-0.5 transition-all duration-300"
+            class="group bg-card border rounded-2xl p-5 hover:shadow-lg hover:shadow-black/5 hover:-translate-y-0.5 transition-all duration-300 h-full"
           >
             <div class="flex items-start gap-4">
               <!-- Avatar -->
@@ -812,9 +812,6 @@ onMounted(fetchData)
               <div class="text-right">
                 <p v-if="history.effective_date" class="text-xs font-medium text-amber-600">
                   {{ new Date(history.effective_date).toLocaleDateString('en-MY', { day: '2-digit', month: 'short', year: 'numeric' }) }}
-                </p>
-                <p v-if="history.created_at" class="text-[10px] text-muted-foreground">
-                  Recorded: {{ formatDateTime(new Date(history.created_at)) }}
                 </p>
               </div>
             </div>
