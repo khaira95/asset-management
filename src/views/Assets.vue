@@ -700,8 +700,15 @@ onMounted(fetchData)
                 {{ history.change_type === 'create' ? 'Created' : 'Updated' }}
               </span>
               <div class="text-right">
-                <p class="text-xs font-medium text-foreground">{{ formatDateTime(new Date(history.created_at)) }}</p>
-                <p class="text-xs text-muted-foreground">{{ formatTimeAgo(new Date(history.created_at)) }}</p>
+                <!-- Show effective_date for status changes if available -->
+                <template v-if="history.effective_date && history.field_name === 'status'">
+                  <p class="text-xs font-medium text-amber-600">{{ new Date(history.effective_date).toLocaleDateString('en-MY', { day: '2-digit', month: 'short', year: 'numeric' }) }}</p>
+                  <p class="text-[10px] text-muted-foreground">Recorded: {{ formatDateTime(new Date(history.created_at)) }}</p>
+                </template>
+                <template v-else>
+                  <p class="text-xs font-medium text-foreground">{{ formatDateTime(new Date(history.created_at)) }}</p>
+                  <p class="text-xs text-muted-foreground">{{ formatTimeAgo(new Date(history.created_at)) }}</p>
+                </template>
               </div>
             </div>
             <p class="text-sm text-foreground">
