@@ -107,9 +107,6 @@ async function fetchMonthlyData() {
     const assets = assetsRes.data || []
     const history = historyRes.data || []
 
-    // Debug: log history data
-    console.log('Status history from DB:', history)
-
     // Get last 6 months
     const months: MonthlyData[] = []
     const now = new Date()
@@ -185,9 +182,6 @@ async function fetchMonthlyData() {
         else if (statusAtMonth === 'disposed') monthData.disposed++
       })
     })
-
-    // Debug: log calculated monthly data
-    console.log('Monthly data calculated:', months)
 
     monthlyData.value = months
   } catch (error) {
@@ -394,81 +388,71 @@ onMounted(() => {
 
       <!-- Asset Trends Chart - Clustered Column -->
       <div class="bg-card border rounded-xl p-5 mt-4">
-        <div class="flex items-start justify-between mb-3">
+        <div class="flex items-start justify-between mb-6">
           <div>
             <h3 class="font-semibold text-foreground">Asset Trends</h3>
             <p class="text-xs text-muted-foreground">Monthly status breakdown</p>
           </div>
           <!-- Legend -->
-          <div class="flex flex-wrap gap-2 text-[10px]">
-            <div class="flex items-center gap-1">
-              <div class="w-2.5 h-2.5 rounded-sm bg-emerald-500"></div>
+          <div class="flex items-center gap-4 text-xs">
+            <div class="flex items-center gap-1.5">
+              <div class="w-3 h-3 rounded-full bg-emerald-500"></div>
               <span class="text-muted-foreground">Active</span>
             </div>
-            <div class="flex items-center gap-1">
-              <div class="w-2.5 h-2.5 rounded-sm bg-amber-500"></div>
+            <div class="flex items-center gap-1.5">
+              <div class="w-3 h-3 rounded-full bg-amber-500"></div>
               <span class="text-muted-foreground">Maintenance</span>
             </div>
-            <div class="flex items-center gap-1">
-              <div class="w-2.5 h-2.5 rounded-sm bg-gray-400"></div>
+            <div class="flex items-center gap-1.5">
+              <div class="w-3 h-3 rounded-full bg-gray-400"></div>
               <span class="text-muted-foreground">Inactive</span>
             </div>
-            <div class="flex items-center gap-1">
-              <div class="w-2.5 h-2.5 rounded-sm bg-red-500"></div>
+            <div class="flex items-center gap-1.5">
+              <div class="w-3 h-3 rounded-full bg-red-500"></div>
               <span class="text-muted-foreground">Disposed</span>
             </div>
           </div>
         </div>
 
         <!-- Clustered Column Chart -->
-        <div v-if="monthlyData.length === 0" class="flex items-center justify-center h-44">
+        <div v-if="monthlyData.length === 0" class="flex items-center justify-center h-52">
           <p class="text-sm text-muted-foreground">Loading...</p>
         </div>
-        <div v-else class="flex items-end gap-1 h-44">
-          <div
-            v-for="data in monthlyData"
-            :key="`${data.month}-${data.year}`"
-            class="flex-1 flex flex-col"
-          >
-            <!-- Clustered bars for each status -->
-            <div class="flex-1 flex items-end justify-center gap-0.5 px-0.5">
-              <!-- Active -->
-              <div class="flex-1 flex flex-col items-center justify-end h-full max-w-6">
-                <span v-if="data.active > 0" class="text-[9px] font-medium text-emerald-600 mb-0.5">{{ data.active }}</span>
+        <div v-else class="h-52">
+          <div class="flex items-end justify-around h-full gap-4 px-4">
+            <div
+              v-for="data in monthlyData"
+              :key="`${data.month}-${data.year}`"
+              class="flex-1 flex flex-col h-full max-w-32"
+            >
+              <!-- Clustered bars for each status -->
+              <div class="flex-1 flex items-end justify-center gap-1">
+                <!-- Active -->
                 <div
-                  class="w-full bg-emerald-500 rounded-t transition-all duration-300"
-                  :style="{ height: `${(data.active / maxMonthly) * 100}%`, minHeight: data.active > 0 ? '4px' : '0' }"
+                  class="w-5 bg-emerald-500 rounded-t transition-all duration-500"
+                  :style="{ height: `${maxMonthly > 0 ? (data.active / maxMonthly) * 100 : 0}%`, minHeight: data.active > 0 ? '4px' : '0' }"
+                ></div>
+                <!-- Maintenance -->
+                <div
+                  class="w-5 bg-amber-500 rounded-t transition-all duration-500"
+                  :style="{ height: `${maxMonthly > 0 ? (data.maintenance / maxMonthly) * 100 : 0}%`, minHeight: data.maintenance > 0 ? '4px' : '0' }"
+                ></div>
+                <!-- Inactive -->
+                <div
+                  class="w-5 bg-gray-400 rounded-t transition-all duration-500"
+                  :style="{ height: `${maxMonthly > 0 ? (data.inactive / maxMonthly) * 100 : 0}%`, minHeight: data.inactive > 0 ? '4px' : '0' }"
+                ></div>
+                <!-- Disposed -->
+                <div
+                  class="w-5 bg-red-500 rounded-t transition-all duration-500"
+                  :style="{ height: `${maxMonthly > 0 ? (data.disposed / maxMonthly) * 100 : 0}%`, minHeight: data.disposed > 0 ? '4px' : '0' }"
                 ></div>
               </div>
-              <!-- Maintenance -->
-              <div class="flex-1 flex flex-col items-center justify-end h-full max-w-6">
-                <span v-if="data.maintenance > 0" class="text-[9px] font-medium text-amber-600 mb-0.5">{{ data.maintenance }}</span>
-                <div
-                  class="w-full bg-amber-500 rounded-t transition-all duration-300"
-                  :style="{ height: `${(data.maintenance / maxMonthly) * 100}%`, minHeight: data.maintenance > 0 ? '4px' : '0' }"
-                ></div>
+              <!-- Month Labels -->
+              <div class="text-center pt-2 mt-2 border-t border-border/50">
+                <span class="text-xs text-muted-foreground block">{{ data.month }}</span>
+                <span class="text-[10px] text-muted-foreground/50">{{ data.year }}</span>
               </div>
-              <!-- Inactive -->
-              <div class="flex-1 flex flex-col items-center justify-end h-full max-w-6">
-                <span v-if="data.inactive > 0" class="text-[9px] font-medium text-gray-500 mb-0.5">{{ data.inactive }}</span>
-                <div
-                  class="w-full bg-gray-400 rounded-t transition-all duration-300"
-                  :style="{ height: `${(data.inactive / maxMonthly) * 100}%`, minHeight: data.inactive > 0 ? '4px' : '0' }"
-                ></div>
-              </div>
-              <!-- Disposed -->
-              <div class="flex-1 flex flex-col items-center justify-end h-full max-w-6">
-                <span v-if="data.disposed > 0" class="text-[9px] font-medium text-red-600 mb-0.5">{{ data.disposed }}</span>
-                <div
-                  class="w-full bg-red-500 rounded-t transition-all duration-300"
-                  :style="{ height: `${(data.disposed / maxMonthly) * 100}%`, minHeight: data.disposed > 0 ? '4px' : '0' }"
-                ></div>
-              </div>
-            </div>
-            <!-- Month Labels -->
-            <div class="text-center pt-1.5 mt-1 border-t border-border">
-              <span class="text-[10px] text-muted-foreground block leading-tight">{{ data.month }}</span>
-              <span class="text-[9px] text-muted-foreground/60">{{ data.year }}</span>
             </div>
           </div>
         </div>
@@ -477,60 +461,62 @@ onMounted(() => {
       <!-- Bottom Row: Asset Status + Recent Activity -->
       <div class="grid lg:grid-cols-2 gap-4 mt-4">
         <!-- Asset Status -->
-        <div class="bg-card border rounded-xl p-4">
-          <div class="flex items-center gap-3 mb-4">
-            <div class="relative w-20 h-20">
+        <div class="bg-card border rounded-xl p-5">
+          <div class="flex items-center gap-4 mb-6">
+            <div class="relative w-16 h-16">
               <svg class="w-full h-full -rotate-90" viewBox="0 0 100 100">
-                <circle cx="50" cy="50" r="40" fill="none" stroke="currentColor" stroke-width="12" class="text-muted" />
-                <circle cx="50" cy="50" r="40" fill="none" stroke="currentColor" stroke-width="12" stroke-linecap="round" class="text-emerald-500" :stroke-dasharray="`${assetDistribution[0].percent * 2.51} 251`" />
+                <circle cx="50" cy="50" r="40" fill="none" stroke="currentColor" stroke-width="10" class="text-muted" />
+                <circle cx="50" cy="50" r="40" fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="round" class="text-emerald-500" :stroke-dasharray="`${assetDistribution[0].percent * 2.51} 251`" />
               </svg>
               <div class="absolute inset-0 flex flex-col items-center justify-center">
-                <span class="text-lg font-bold text-foreground">{{ stats.totalAssets }}</span>
-                <span class="text-[9px] text-muted-foreground">Total</span>
+                <span class="text-xl font-bold text-foreground">{{ stats.totalAssets }}</span>
+                <span class="text-[8px] text-muted-foreground">Total</span>
               </div>
             </div>
             <div>
-              <h3 class="font-semibold text-foreground text-sm">Asset Status</h3>
-              <p class="text-[10px] text-muted-foreground">Current distribution</p>
+              <h3 class="font-semibold text-foreground">Asset Status</h3>
+              <p class="text-xs text-muted-foreground">Current distribution</p>
             </div>
           </div>
-          <div class="grid grid-cols-2 gap-2">
+          <div class="grid grid-cols-2 gap-x-8 gap-y-4">
             <div
               v-for="item in assetDistribution"
               :key="item.label"
-              class="flex items-center gap-2 p-2 rounded-lg bg-muted/30"
+              class="flex items-center justify-between"
             >
-              <div :class="['w-2 h-2 rounded-full', item.color]" />
-              <span class="text-xs text-muted-foreground">{{ item.label }}</span>
-              <span class="text-xs font-semibold text-foreground ml-auto">{{ item.value }}</span>
+              <div class="flex items-center gap-2">
+                <div :class="['w-2.5 h-2.5 rounded-full', item.color]" />
+                <span class="text-sm text-muted-foreground">{{ item.label }}</span>
+              </div>
+              <span class="text-sm font-semibold text-foreground">{{ item.value }}</span>
             </div>
           </div>
         </div>
 
         <!-- Recent Activity -->
-        <div class="bg-card border rounded-xl p-4">
-          <div class="mb-3">
-            <h3 class="font-semibold text-foreground text-sm">Recent Activity</h3>
-            <p class="text-[10px] text-muted-foreground">Latest updates</p>
+        <div class="bg-card border rounded-xl p-5">
+          <div class="mb-4">
+            <h3 class="font-semibold text-foreground">Recent Activity</h3>
+            <p class="text-xs text-muted-foreground">Latest updates</p>
           </div>
 
-          <div v-if="recentActivities.length === 0" class="text-center py-4">
-            <Clock class="w-5 h-5 text-muted-foreground/30 mx-auto mb-1" />
-            <p class="text-xs text-muted-foreground">No recent activity</p>
+          <div v-if="recentActivities.length === 0" class="text-center py-6">
+            <Clock class="w-6 h-6 text-muted-foreground/30 mx-auto mb-2" />
+            <p class="text-sm text-muted-foreground">No recent activity</p>
           </div>
-          <div v-else class="space-y-2">
+          <div v-else class="space-y-3">
             <div
               v-for="(activity, index) in recentActivities.slice(0, 4)"
               :key="index"
-              class="flex items-center gap-2 p-2 rounded-lg bg-muted/30"
+              class="flex items-center gap-3"
             >
-              <div :class="['w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0', activity.iconBg]">
-                <component :is="activity.icon" class="w-3 h-3 text-white" />
+              <div :class="['w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0', activity.iconBg]">
+                <component :is="activity.icon" class="w-4 h-4 text-white" />
               </div>
               <div class="flex-1 min-w-0">
-                <p class="text-xs font-medium text-foreground truncate">{{ activity.item }}</p>
+                <p class="text-sm font-medium text-foreground truncate">{{ activity.item }}</p>
               </div>
-              <span class="text-[10px] text-muted-foreground">{{ activity.time }}</span>
+              <span class="text-xs text-muted-foreground">{{ activity.time }}</span>
             </div>
           </div>
         </div>
