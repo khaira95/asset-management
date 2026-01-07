@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { supabase } from '@/lib/supabase'
 import type { Staff, Location, Asset, Category, AssetHistory } from '@/types/database'
-import { Users, Plus, Pencil, Trash2, Mail, Phone, MapPin, Package, Eye, Clock, ChevronDown, ChevronUp, Search } from 'lucide-vue-next'
+import { Users, Plus, Pencil, Trash2, Mail, Phone, MapPin, Package, Eye, Clock, ChevronDown, ChevronUp, Search, ChevronLeft, ChevronRight } from 'lucide-vue-next'
 import Modal from '@/components/Modal.vue'
 
 interface StaffWithLocation extends Staff {
@@ -22,6 +22,10 @@ const loading = ref(true)
 const saving = ref(false)
 const searchQuery = ref('')
 
+// Pagination
+const currentPage = ref(1)
+const itemsPerPage = 10
+
 const filteredStaff = computed(() => {
   if (!searchQuery.value.trim()) return staffList.value
   const query = searchQuery.value.toLowerCase().trim()
@@ -32,6 +36,24 @@ const filteredStaff = computed(() => {
     (staff.email && staff.email.toLowerCase().includes(query)) ||
     (staff.locations?.name && staff.locations.name.toLowerCase().includes(query))
   )
+})
+
+// Pagination computed
+const totalPages = computed(() => Math.ceil(filteredStaff.value.length / itemsPerPage))
+const paginatedStaff = computed(() => {
+  const start = (currentPage.value - 1) * itemsPerPage
+  return filteredStaff.value.slice(start, start + itemsPerPage)
+})
+
+function goToPage(page: number) {
+  if (page >= 1 && page <= totalPages.value) {
+    currentPage.value = page
+  }
+}
+
+// Reset page when search changes
+watch(searchQuery, () => {
+  currentPage.value = 1
 })
 
 // Modal state
@@ -277,9 +299,9 @@ onMounted(fetchData)
 </script>
 
 <template>
-  <div class="p-6 lg:p-8">
+  <div class="h-full flex flex-col p-4 lg:p-6">
     <!-- Header -->
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
       <div class="flex items-center gap-3">
         <div class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
           <Users class="w-5 h-5 text-primary" />
@@ -299,7 +321,7 @@ onMounted(fetchData)
     </div>
 
     <!-- Search Box -->
-    <div class="relative mb-6">
+    <div class="relative mb-4">
       <Search class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
       <input
         v-model="searchQuery"
@@ -340,74 +362,124 @@ onMounted(fetchData)
     </div>
 
     <!-- Grid -->
-    <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 stagger-children">
-      <div
-        v-for="staff in filteredStaff"
-        :key="staff.id"
-        class="group bg-card border rounded-2xl p-5 hover:shadow-lg hover:shadow-black/5 hover:-translate-y-0.5 transition-all duration-300"
-      >
-        <div class="flex items-start gap-4">
-          <!-- Avatar -->
-          <div class="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-            <span class="text-lg font-semibold text-primary">
-              {{ staff.name.charAt(0).toUpperCase() }}
-            </span>
-          </div>
-
-          <div class="flex-1 min-w-0">
-            <div class="flex items-start justify-between">
-              <div>
-                <h3 class="font-semibold text-foreground">{{ staff.name }}</h3>
-                <p class="text-sm text-muted-foreground">{{ staff.staff_id }}</p>
+    <div v-else class="flex-1 flex flex-col min-h-0">
+      <div class="flex-1 overflow-auto">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 stagger-children">
+          <div
+            v-for="staff in paginatedStaff"
+            :key="staff.id"
+            class="group bg-card border rounded-2xl p-5 hover:shadow-lg hover:shadow-black/5 hover:-translate-y-0.5 transition-all duration-300"
+          >
+            <div class="flex items-start gap-4">
+              <!-- Avatar -->
+              <div class="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+                <span class="text-lg font-semibold text-primary">
+                  {{ staff.name.charAt(0).toUpperCase() }}
+                </span>
               </div>
-              <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button
-                  @click="openEdit(staff)"
-                  class="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-all"
-                  title="Edit"
-                >
-                  <Pencil class="w-3.5 h-3.5" />
-                </button>
-                <button
-                  @click="deleteStaff(staff.id)"
-                  class="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-all"
-                  title="Delete"
-                >
-                  <Trash2 class="w-3.5 h-3.5" />
-                </button>
+
+              <div class="flex-1 min-w-0">
+                <div class="flex items-start justify-between">
+                  <div>
+                    <h3 class="font-semibold text-foreground">{{ staff.name }}</h3>
+                    <p class="text-sm text-muted-foreground">{{ staff.staff_id }}</p>
+                  </div>
+                  <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      @click="openEdit(staff)"
+                      class="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-all"
+                      title="Edit"
+                    >
+                      <Pencil class="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      @click="deleteStaff(staff.id)"
+                      class="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-all"
+                      title="Delete"
+                    >
+                      <Trash2 class="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+
+                <p v-if="staff.position" class="text-sm text-foreground mt-2">{{ staff.position }}</p>
+
+                <div class="mt-3 space-y-1.5">
+                  <button
+                    v-if="staff.asset_count > 0"
+                    @click="openAssetsModal(staff)"
+                    class="flex items-center gap-2 text-sm text-primary hover:text-primary/80 transition-colors"
+                  >
+                    <Package class="w-3.5 h-3.5" />
+                    <span class="font-medium">{{ staff.asset_count }} asset{{ staff.asset_count !== 1 ? 's' : '' }}</span>
+                    <Eye class="w-3 h-3" />
+                  </button>
+                  <p v-else class="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Package class="w-3.5 h-3.5" />
+                    <span>0 assets</span>
+                  </p>
+                  <p v-if="staff.locations" class="flex items-center gap-2 text-sm text-muted-foreground">
+                    <MapPin class="w-3.5 h-3.5" />
+                    {{ staff.locations.name }}
+                  </p>
+                  <p v-if="staff.email" class="flex items-center gap-2 text-sm text-muted-foreground truncate">
+                    <Mail class="w-3.5 h-3.5 flex-shrink-0" />
+                    {{ staff.email }}
+                  </p>
+                  <p v-if="staff.phone_number" class="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Phone class="w-3.5 h-3.5" />
+                    {{ staff.phone_number }}
+                  </p>
+                </div>
               </div>
             </div>
+          </div>
+        </div>
+      </div>
 
-            <p v-if="staff.position" class="text-sm text-foreground mt-2">{{ staff.position }}</p>
+      <!-- Pagination -->
+      <div v-if="totalPages > 1" class="mt-4 px-4 py-3 bg-card border rounded-xl flex items-center justify-between">
+        <p class="text-sm text-muted-foreground">
+          Showing {{ (currentPage - 1) * itemsPerPage + 1 }} - {{ Math.min(currentPage * itemsPerPage, filteredStaff.length) }} of {{ filteredStaff.length }} staff
+        </p>
 
-            <div class="mt-3 space-y-1.5">
+        <div class="flex items-center gap-2">
+          <button
+            @click="goToPage(currentPage - 1)"
+            :disabled="currentPage === 1"
+            class="p-2 rounded-lg border bg-background hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+          >
+            <ChevronLeft class="w-4 h-4" />
+          </button>
+
+          <div class="flex items-center gap-1">
+            <template v-for="page in totalPages" :key="page">
               <button
-                v-if="staff.asset_count > 0"
-                @click="openAssetsModal(staff)"
-                class="flex items-center gap-2 text-sm text-primary hover:text-primary/80 transition-colors"
+                v-if="page === 1 || page === totalPages || (page >= currentPage - 1 && page <= currentPage + 1)"
+                @click="goToPage(page)"
+                :class="[
+                  'min-w-[36px] h-9 px-3 rounded-lg text-sm font-medium transition-all',
+                  page === currentPage
+                    ? 'bg-primary text-primary-foreground'
+                    : 'border bg-background hover:bg-muted'
+                ]"
               >
-                <Package class="w-3.5 h-3.5" />
-                <span class="font-medium">{{ staff.asset_count }} asset{{ staff.asset_count !== 1 ? 's' : '' }}</span>
-                <Eye class="w-3 h-3" />
+                {{ page }}
               </button>
-              <p v-else class="flex items-center gap-2 text-sm text-muted-foreground">
-                <Package class="w-3.5 h-3.5" />
-                <span>0 assets</span>
-              </p>
-              <p v-if="staff.locations" class="flex items-center gap-2 text-sm text-muted-foreground">
-                <MapPin class="w-3.5 h-3.5" />
-                {{ staff.locations.name }}
-              </p>
-              <p v-if="staff.email" class="flex items-center gap-2 text-sm text-muted-foreground truncate">
-                <Mail class="w-3.5 h-3.5 flex-shrink-0" />
-                {{ staff.email }}
-              </p>
-              <p v-if="staff.phone_number" class="flex items-center gap-2 text-sm text-muted-foreground">
-                <Phone class="w-3.5 h-3.5" />
-                {{ staff.phone_number }}
-              </p>
-            </div>
+              <span
+                v-else-if="page === currentPage - 2 || page === currentPage + 2"
+                class="px-1 text-muted-foreground"
+              >...</span>
+            </template>
           </div>
+
+          <button
+            @click="goToPage(currentPage + 1)"
+            :disabled="currentPage === totalPages"
+            class="p-2 rounded-lg border bg-background hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+          >
+            <ChevronRight class="w-4 h-4" />
+          </button>
         </div>
       </div>
     </div>
