@@ -1,19 +1,20 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { supabase } from '@/lib/supabase'
-import type { Asset, Category, Staff } from '@/types/database'
-import { Package, Plus, Pencil, Trash2, Search, Filter, History, Clock } from 'lucide-vue-next'
+import type { Asset, Category, Staff, Location } from '@/types/database'
+import { Package, Plus, Pencil, Trash2, Search, Filter, History, Clock, ChevronLeft, ChevronRight } from 'lucide-vue-next'
 import type { AssetHistory } from '@/types/database'
 import Modal from '@/components/Modal.vue'
 
-interface AssetWithRelations extends Asset {
-  categories: Category | null
-  staff: Staff | null
+interface StaffWithLocation extends Staff {
+  locations: Location | null
 }
 
-interface StaffWithLocation extends Staff {
-  locations: { name: string } | null
+interface AssetWithRelations extends Asset {
+  categories: Category | null
+  staff: StaffWithLocation | null
 }
+
 
 const assets = ref<AssetWithRelations[]>([])
 const categories = ref<Category[]>([])
@@ -21,6 +22,10 @@ const staffList = ref<StaffWithLocation[]>([])
 const loading = ref(true)
 const saving = ref(false)
 const searchQuery = ref('')
+
+// Pagination
+const currentPage = ref(1)
+const itemsPerPage = 10
 
 // Modal state
 const showModal = ref(false)
@@ -64,10 +69,26 @@ watch([assets, searchQuery], () => {
       a.asset_name.toLowerCase().includes(query) ||
       a.serial_number?.toLowerCase().includes(query) ||
       a.categories?.name.toLowerCase().includes(query) ||
-      a.staff?.name.toLowerCase().includes(query)
+      a.staff?.name.toLowerCase().includes(query) ||
+      a.staff?.locations?.name?.toLowerCase().includes(query)
     )
   }
+  // Reset to first page when search changes
+  currentPage.value = 1
 }, { immediate: true })
+
+// Pagination computed
+const totalPages = computed(() => Math.ceil(filteredAssets.value.length / itemsPerPage))
+const paginatedAssets = computed(() => {
+  const start = (currentPage.value - 1) * itemsPerPage
+  return filteredAssets.value.slice(start, start + itemsPerPage)
+})
+
+function goToPage(page: number) {
+  if (page >= 1 && page <= totalPages.value) {
+    currentPage.value = page
+  }
+}
 
 // Generate next asset name based on category
 async function generateAssetName(categoryId: number) {
@@ -146,7 +167,7 @@ function closeModal() {
 async function fetchData() {
   try {
     const [assetsRes, catRes, staffRes] = await Promise.all([
-      supabase.from('assets').select('*, categories (*), staff (*)').order('created_at', { ascending: false }),
+      supabase.from('assets').select('*, categories (*), staff (*, locations (*))').order('created_at', { ascending: false }),
       supabase.from('categories').select('*').order('name'),
       supabase.from('staff').select('*, locations (name)').order('name')
     ])
@@ -394,9 +415,9 @@ onMounted(fetchData)
 </script>
 
 <template>
-  <div class="p-6 lg:p-8">
+  <div class="h-full flex flex-col p-4 lg:p-6">
     <!-- Header -->
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
       <div class="flex items-center gap-3">
         <div class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
           <Package class="w-5 h-5 text-primary" />
@@ -416,7 +437,7 @@ onMounted(fetchData)
     </div>
 
     <!-- Search bar -->
-    <div class="mb-6">
+    <div class="mb-4">
       <div class="relative max-w-md">
         <Search class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <input
@@ -454,13 +475,14 @@ onMounted(fetchData)
     </div>
 
     <!-- Table -->
-    <div v-else class="bg-card border rounded-2xl overflow-hidden">
-      <div class="overflow-x-auto">
+    <div v-else class="flex-1 flex flex-col bg-card border rounded-2xl overflow-hidden min-h-0">
+      <div class="flex-1 overflow-auto">
         <table class="w-full">
-          <thead>
+          <thead class="sticky top-0 bg-card z-10">
             <tr class="border-b bg-muted/30">
               <th class="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Asset</th>
               <th class="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Category</th>
+              <th class="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Location</th>
               <th class="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Status</th>
               <th class="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Assigned To</th>
               <th class="px-6 py-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">Actions</th>
@@ -468,7 +490,7 @@ onMounted(fetchData)
           </thead>
           <tbody class="divide-y">
             <tr
-              v-for="asset in filteredAssets"
+              v-for="asset in paginatedAssets"
               :key="asset.id"
               class="group hover:bg-muted/30 transition-colors"
             >
@@ -480,6 +502,9 @@ onMounted(fetchData)
               </td>
               <td class="px-6 py-4">
                 <span class="text-sm text-foreground">{{ asset.categories?.name || '-' }}</span>
+              </td>
+              <td class="px-6 py-4">
+                <span class="text-sm text-foreground">{{ asset.staff?.locations?.name || '-' }}</span>
               </td>
               <td class="px-6 py-4">
                 <span :class="['inline-flex px-2.5 py-1 text-xs font-medium rounded-lg border', statusConfig[asset.status]?.class]">
@@ -519,11 +544,51 @@ onMounted(fetchData)
         </table>
       </div>
 
-      <!-- Table footer -->
-      <div class="px-6 py-4 border-t bg-muted/20">
+      <!-- Table footer with pagination -->
+      <div class="px-6 py-4 border-t bg-muted/20 flex items-center justify-between">
         <p class="text-sm text-muted-foreground">
-          Showing {{ filteredAssets.length }} of {{ assets.length }} assets
+          Showing {{ (currentPage - 1) * itemsPerPage + 1 }} - {{ Math.min(currentPage * itemsPerPage, filteredAssets.length) }} of {{ filteredAssets.length }} assets
         </p>
+
+        <!-- Pagination controls -->
+        <div v-if="totalPages > 1" class="flex items-center gap-2">
+          <button
+            @click="goToPage(currentPage - 1)"
+            :disabled="currentPage === 1"
+            class="p-2 rounded-lg border bg-background hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+          >
+            <ChevronLeft class="w-4 h-4" />
+          </button>
+
+          <div class="flex items-center gap-1">
+            <template v-for="page in totalPages" :key="page">
+              <button
+                v-if="page === 1 || page === totalPages || (page >= currentPage - 1 && page <= currentPage + 1)"
+                @click="goToPage(page)"
+                :class="[
+                  'min-w-[36px] h-9 px-3 rounded-lg text-sm font-medium transition-all',
+                  page === currentPage
+                    ? 'bg-primary text-primary-foreground'
+                    : 'border bg-background hover:bg-muted'
+                ]"
+              >
+                {{ page }}
+              </button>
+              <span
+                v-else-if="page === currentPage - 2 || page === currentPage + 2"
+                class="px-1 text-muted-foreground"
+              >...</span>
+            </template>
+          </div>
+
+          <button
+            @click="goToPage(currentPage + 1)"
+            :disabled="currentPage === totalPages"
+            class="p-2 rounded-lg border bg-background hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+          >
+            <ChevronRight class="w-4 h-4" />
+          </button>
+        </div>
       </div>
     </div>
 
