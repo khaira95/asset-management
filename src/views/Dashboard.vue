@@ -96,13 +96,19 @@ const maxMonthly = computed(() => {
 
 async function fetchMonthlyData() {
   try {
-    // Get all assets with their current/latest status and created_at
-    const { data: assets, error } = await supabase
-      .from('assets')
-      .select('id, status, created_at')
-      .order('created_at', { ascending: true })
+    // Get all assets and status change history with effective_date
+    const [assetsRes, historyRes] = await Promise.all([
+      supabase.from('assets').select('id, status, created_at').order('created_at', { ascending: true }),
+      supabase.from('asset_history')
+        .select('asset_id, new_value, effective_date, created_at')
+        .eq('field_name', 'status')
+        .order('effective_date', { ascending: true })
+    ])
 
-    if (error) throw error
+    if (assetsRes.error) throw assetsRes.error
+
+    const assets = assetsRes.data || []
+    const history = historyRes.data || []
 
     // Get last 6 months
     const months: MonthlyData[] = []
@@ -121,25 +127,61 @@ async function fetchMonthlyData() {
       })
     }
 
-    // For each month, count assets that existed by end of that month
-    // but show their CURRENT/LATEST status
+    // Helper to parse date string
+    const parseDate = (dateStr: string) => {
+      if (!dateStr) return null
+      // Handle YYYY-MM-DD format
+      if (dateStr.length === 10) {
+        return new Date(dateStr + 'T12:00:00')
+      }
+      return new Date(dateStr)
+    }
+
+    // For each month, calculate asset status based on effective_date
     months.forEach((monthData, idx) => {
       const monthEnd = new Date(now.getFullYear(), now.getMonth() - (5 - idx) + 1, 0, 23, 59, 59)
 
-      assets?.forEach(asset => {
+      assets.forEach(asset => {
         const createdAt = new Date(asset.created_at)
 
         // Asset must exist by end of this month
         if (createdAt > monthEnd) return
 
-        // Use the asset's current/latest status (not historical)
-        const currentStatus = asset.status
+        // Find status at end of this month based on effective_date
+        // Default to 'active' (status when created)
+        let statusAtMonth = 'active'
+
+        // Get all status changes for this asset up to monthEnd
+        const assetHistory = history.filter(h => {
+          if (h.asset_id !== asset.id) return false
+          // Use effective_date if available, otherwise use created_at
+          const changeDate = h.effective_date ? parseDate(h.effective_date) : parseDate(h.created_at)
+          return changeDate && changeDate <= monthEnd
+        })
+
+        // Sort by effective_date to get the latest status at monthEnd
+        assetHistory.sort((a, b) => {
+          const dateA = a.effective_date ? parseDate(a.effective_date) : parseDate(a.created_at)
+          const dateB = b.effective_date ? parseDate(b.effective_date) : parseDate(b.created_at)
+          return (dateA?.getTime() || 0) - (dateB?.getTime() || 0)
+        })
+
+        // Apply status changes in order - last one is the status at monthEnd
+        if (assetHistory.length > 0) {
+          const lastChange = assetHistory[assetHistory.length - 1]
+          if (lastChange.new_value) {
+            statusAtMonth = lastChange.new_value
+          }
+        } else {
+          // No history, use current status (for assets without history tracking)
+          statusAtMonth = asset.status
+        }
 
         monthData.total++
-        if (currentStatus === 'active') monthData.active++
-        else if (currentStatus === 'maintenance') monthData.maintenance++
-        else if (currentStatus === 'inactive') monthData.inactive++
-        else if (currentStatus === 'disposed') monthData.disposed++
+        if (statusAtMonth === 'active') monthData.active++
+        else if (statusAtMonth === 'maintenance') monthData.maintenance++
+        else if (statusAtMonth === 'inactive') monthData.inactive++
+        else if (statusAtMonth === 'disposed') monthData.disposed++
       })
     })
 
@@ -351,7 +393,7 @@ onMounted(() => {
         <div class="flex items-start justify-between mb-6">
           <div>
             <h3 class="text-lg font-semibold text-foreground">Asset Trends</h3>
-            <p class="text-sm text-muted-foreground">Assets by month (current status)</p>
+            <p class="text-sm text-muted-foreground">Status berdasarkan tarikh perubahan</p>
           </div>
           <!-- Legend -->
           <div class="flex items-center gap-5 text-sm">
