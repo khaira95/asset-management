@@ -483,9 +483,9 @@ onMounted(() => {
       </div>
 
       <!-- Asset Trends + Recent Activity Row -->
-      <div class="grid lg:grid-cols-2 gap-6">
+      <div class="grid lg:grid-cols-5 gap-6">
         <!-- Asset Trends Chart -->
-        <div class="bg-card border rounded-xl p-5">
+        <div class="lg:col-span-3 bg-card border rounded-xl p-5">
           <div class="flex items-start justify-between mb-4">
             <div>
               <h3 class="font-semibold text-foreground">Asset Trends</h3>
@@ -562,8 +562,8 @@ onMounted(() => {
         </div>
 
         <!-- Recent Activity -->
-        <div class="bg-card border rounded-xl p-5">
-          <div class="mb-4">
+        <div class="lg:col-span-2 bg-card border rounded-xl p-5">
+          <div class="mb-3">
             <h3 class="font-semibold text-foreground">Recent Activity</h3>
             <p class="text-xs text-muted-foreground">Latest updates</p>
           </div>
@@ -572,24 +572,24 @@ onMounted(() => {
             <Clock class="w-6 h-6 text-muted-foreground/30 mx-auto mb-2" />
             <p class="text-sm text-muted-foreground">No recent activity</p>
           </div>
-          <div v-else class="max-h-56 overflow-y-auto space-y-4 pr-2">
+          <div v-else class="max-h-52 overflow-y-auto space-y-3 pr-2">
             <div v-for="group in activitiesByDate" :key="group.date">
               <div class="sticky top-0 bg-card py-1 mb-2">
                 <span class="text-xs font-semibold text-primary">{{ group.label }}</span>
               </div>
-              <div class="space-y-2">
+              <div class="space-y-1.5">
                 <div
                   v-for="(activity, index) in group.activities"
                   :key="index"
-                  class="flex items-center gap-3"
+                  class="flex items-center gap-2"
                 >
-                  <div :class="['w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0', activity.iconBg]">
-                    <component :is="activity.icon" class="w-3.5 h-3.5 text-white" />
+                  <div :class="['w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0', activity.iconBg]">
+                    <component :is="activity.icon" class="w-3 h-3 text-white" />
                   </div>
                   <div class="flex-1 min-w-0">
-                    <p class="text-sm font-medium text-foreground truncate">{{ activity.item }}</p>
+                    <p class="text-xs font-medium text-foreground truncate">{{ activity.item }}</p>
                   </div>
-                  <span class="text-xs text-muted-foreground">{{ activity.time }}</span>
+                  <span class="text-[10px] text-muted-foreground">{{ activity.time }}</span>
                 </div>
               </div>
             </div>
