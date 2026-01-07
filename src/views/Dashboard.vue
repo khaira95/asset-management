@@ -458,10 +458,10 @@ onMounted(() => {
         </div>
 
         <!-- Clustered Column Chart -->
-        <div v-if="monthlyData.length === 0" class="flex items-center justify-center h-48">
+        <div v-if="monthlyData.length === 0" class="flex items-center justify-center h-56">
           <p class="text-sm text-muted-foreground">Loading...</p>
         </div>
-        <div v-else class="h-56">
+        <div v-else class="h-64">
           <div class="flex items-end justify-around h-full gap-6 px-4">
             <div
               v-for="data in monthlyData"
