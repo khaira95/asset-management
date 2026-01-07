@@ -1,13 +1,19 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { supabase } from '@/lib/supabase'
-import type { Staff, Location } from '@/types/database'
-import { Users, Plus, Pencil, Trash2, Mail, Phone, MapPin, Package } from 'lucide-vue-next'
+import type { Staff, Location, Asset, Category, AssetHistory } from '@/types/database'
+import { Users, Plus, Pencil, Trash2, Mail, Phone, MapPin, Package, Eye, Clock, ChevronDown, ChevronUp } from 'lucide-vue-next'
 import Modal from '@/components/Modal.vue'
 
 interface StaffWithLocation extends Staff {
   locations: Location | null
   asset_count?: number
+}
+
+interface AssetWithDetails extends Asset {
+  categories: Category | null
+  history: AssetHistory[]
+  showHistory?: boolean
 }
 
 const staffList = ref<StaffWithLocation[]>([])
@@ -27,6 +33,108 @@ const form = ref({
   location_id: '' as string | number
 })
 const formError = ref('')
+
+// Assets modal state
+const showAssetsModal = ref(false)
+const selectedStaff = ref<StaffWithLocation | null>(null)
+const staffAssets = ref<AssetWithDetails[]>([])
+const loadingAssets = ref(false)
+
+const statusConfig: Record<string, { label: string; class: string }> = {
+  active: { label: 'Active', class: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  maintenance: { label: 'Maintenance', class: 'bg-amber-50 text-amber-700 border-amber-200' },
+  inactive: { label: 'Inactive', class: 'bg-gray-100 text-gray-600 border-gray-200' },
+  disposed: { label: 'Disposed', class: 'bg-red-50 text-red-700 border-red-200' }
+}
+
+function formatDateTime(date: Date): string {
+  return date.toLocaleString('en-MY', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  })
+}
+
+function formatTimeAgo(date: Date): string {
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  const diffMins = Math.floor(diffMs / 60000)
+  const diffHours = Math.floor(diffMs / 3600000)
+  const diffDays = Math.floor(diffMs / 86400000)
+
+  if (diffMins < 1) return 'Just now'
+  if (diffMins < 60) return `${diffMins} min ago`
+  if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`
+  if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`
+  return date.toLocaleDateString()
+}
+
+async function openAssetsModal(staff: StaffWithLocation) {
+  selectedStaff.value = staff
+  showAssetsModal.value = true
+  loadingAssets.value = true
+
+  try {
+    // Fetch assets for this staff
+    const { data: assetsData, error: assetsError } = await supabase
+      .from('assets')
+      .select('*, categories (*)')
+      .eq('staff_id', staff.id)
+      .order('asset_name')
+
+    if (assetsError) throw assetsError
+
+    // Fetch history for all these assets
+    const assetIds = (assetsData || []).map(a => a.id)
+    let historyData: AssetHistory[] = []
+
+    if (assetIds.length > 0) {
+      const { data, error: historyError } = await supabase
+        .from('asset_history')
+        .select('*')
+        .in('asset_id', assetIds)
+        .order('created_at', { ascending: false })
+
+      if (!historyError) {
+        historyData = data || []
+      }
+    }
+
+    // Group history by asset_id
+    const historyByAsset: Record<number, AssetHistory[]> = {}
+    historyData.forEach(h => {
+      if (!historyByAsset[h.asset_id]) {
+        historyByAsset[h.asset_id] = []
+      }
+      historyByAsset[h.asset_id].push(h)
+    })
+
+    // Combine assets with their history
+    staffAssets.value = (assetsData || []).map(asset => ({
+      ...asset,
+      history: historyByAsset[asset.id] || [],
+      showHistory: false
+    }))
+  } catch (error) {
+    console.error('Error fetching staff assets:', error)
+    staffAssets.value = []
+  } finally {
+    loadingAssets.value = false
+  }
+}
+
+function closeAssetsModal() {
+  showAssetsModal.value = false
+  selectedStaff.value = null
+  staffAssets.value = []
+}
+
+function toggleAssetHistory(asset: AssetWithDetails) {
+  asset.showHistory = !asset.showHistory
+}
 
 function openCreate() {
   editingId.value = null
@@ -240,11 +348,18 @@ onMounted(fetchData)
             <p v-if="staff.position" class="text-sm text-foreground mt-2">{{ staff.position }}</p>
 
             <div class="mt-3 space-y-1.5">
-              <p class="flex items-center gap-2 text-sm">
-                <Package class="w-3.5 h-3.5 text-primary" />
-                <span :class="staff.asset_count > 0 ? 'text-foreground font-medium' : 'text-muted-foreground'">
-                  {{ staff.asset_count }} asset{{ staff.asset_count !== 1 ? 's' : '' }}
-                </span>
+              <button
+                v-if="staff.asset_count > 0"
+                @click="openAssetsModal(staff)"
+                class="flex items-center gap-2 text-sm text-primary hover:text-primary/80 transition-colors"
+              >
+                <Package class="w-3.5 h-3.5" />
+                <span class="font-medium">{{ staff.asset_count }} asset{{ staff.asset_count !== 1 ? 's' : '' }}</span>
+                <Eye class="w-3 h-3" />
+              </button>
+              <p v-else class="flex items-center gap-2 text-sm text-muted-foreground">
+                <Package class="w-3.5 h-3.5" />
+                <span>0 assets</span>
               </p>
               <p v-if="staff.locations" class="flex items-center gap-2 text-sm text-muted-foreground">
                 <MapPin class="w-3.5 h-3.5" />
@@ -362,6 +477,110 @@ onMounted(fetchData)
           </button>
         </div>
       </form>
+    </Modal>
+
+    <!-- Assets Modal -->
+    <Modal
+      :show="showAssetsModal"
+      :title="`Assets: ${selectedStaff?.name || ''}`"
+      size="lg"
+      @close="closeAssetsModal"
+    >
+      <div v-if="loadingAssets" class="py-8 text-center">
+        <div class="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full mx-auto mb-2"></div>
+        <p class="text-sm text-muted-foreground">Loading assets...</p>
+      </div>
+
+      <div v-else-if="staffAssets.length === 0" class="py-12 text-center">
+        <Package class="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
+        <p class="text-muted-foreground">No assets assigned</p>
+      </div>
+
+      <div v-else class="space-y-3 max-h-[60vh] overflow-y-auto">
+        <div
+          v-for="asset in staffAssets"
+          :key="asset.id"
+          class="border rounded-xl overflow-hidden"
+        >
+          <!-- Asset Header -->
+          <div class="p-4 bg-muted/30">
+            <div class="flex items-start justify-between gap-3">
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 mb-1">
+                  <h4 class="font-semibold text-foreground">{{ asset.asset_name }}</h4>
+                  <span :class="['px-2 py-0.5 text-xs font-medium rounded-full border', statusConfig[asset.status]?.class]">
+                    {{ statusConfig[asset.status]?.label }}
+                  </span>
+                </div>
+                <div class="flex items-center gap-3 text-sm text-muted-foreground">
+                  <span v-if="asset.categories">{{ asset.categories.name }}</span>
+                  <span v-if="asset.serial_number">SN: {{ asset.serial_number }}</span>
+                </div>
+              </div>
+              <button
+                @click="toggleAssetHistory(asset)"
+                class="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-all"
+              >
+                <Clock class="w-3.5 h-3.5" />
+                History ({{ asset.history.length }})
+                <ChevronDown v-if="!asset.showHistory" class="w-3.5 h-3.5" />
+                <ChevronUp v-else class="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+
+          <!-- Asset History (Collapsible) -->
+          <div v-if="asset.showHistory" class="border-t">
+            <div v-if="asset.history.length === 0" class="p-4 text-center">
+              <p class="text-sm text-muted-foreground">No history recorded</p>
+            </div>
+            <div v-else class="divide-y">
+              <div
+                v-for="history in asset.history"
+                :key="history.id"
+                class="p-3 flex items-start gap-3"
+              >
+                <div class="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <Clock class="w-3 h-3 text-primary" />
+                </div>
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center justify-between gap-2">
+                    <span :class="[
+                      'px-1.5 py-0.5 text-xs font-medium rounded',
+                      history.change_type === 'create' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'
+                    ]">
+                      {{ history.change_type === 'create' ? 'Created' : 'Updated' }}
+                    </span>
+                    <div class="text-right">
+                      <p class="text-xs font-medium text-foreground">{{ formatDateTime(new Date(history.created_at)) }}</p>
+                      <p class="text-xs text-muted-foreground">{{ formatTimeAgo(new Date(history.created_at)) }}</p>
+                    </div>
+                  </div>
+                  <p class="text-sm text-foreground mt-1">
+                    <span class="font-medium capitalize">{{ history.field_name.replace('_', ' ') }}</span>
+                    <template v-if="history.change_type === 'create'">
+                      : {{ history.new_value }}
+                    </template>
+                    <template v-else>
+                      changed from <span class="text-muted-foreground">{{ history.old_value || 'empty' }}</span>
+                      to <span class="font-medium">{{ history.new_value || 'empty' }}</span>
+                    </template>
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex justify-end pt-4 mt-4 border-t">
+        <button
+          @click="closeAssetsModal"
+          class="px-4 py-2.5 border rounded-xl font-medium text-foreground hover:bg-muted transition-all"
+        >
+          Close
+        </button>
+      </div>
     </Modal>
   </div>
 </template>

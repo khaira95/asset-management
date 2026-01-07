@@ -93,17 +93,66 @@ const assetDistribution = computed(() => {
   ]
 })
 
-// Dummy monthly data for chart
-const monthlyData = [
-  { month: 'Jul', assets: 12 },
-  { month: 'Aug', assets: 19 },
-  { month: 'Sep', assets: 15 },
-  { month: 'Oct', assets: 25 },
-  { month: 'Nov', assets: 22 },
-  { month: 'Dec', assets: 30 },
-]
+// Monthly active assets data
+interface MonthlyData {
+  month: string
+  year: number
+  active: number
+  total: number
+}
 
-const maxMonthly = computed(() => Math.max(...monthlyData.map(d => d.assets)))
+const monthlyData = ref<MonthlyData[]>([])
+const maxMonthly = computed(() => Math.max(...monthlyData.value.map(d => d.active), 1))
+
+async function fetchMonthlyData() {
+  try {
+    // Get all assets with their status and created_at
+    const { data, error } = await supabase
+      .from('assets')
+      .select('status, created_at')
+      .order('created_at', { ascending: true })
+
+    if (error) throw error
+
+    // Get last 6 months
+    const months: MonthlyData[] = []
+    const now = new Date()
+
+    for (let i = 5; i >= 0; i--) {
+      const date = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      months.push({
+        month: date.toLocaleString('en', { month: 'short' }),
+        year: date.getFullYear(),
+        active: 0,
+        total: 0
+      })
+    }
+
+    // Count active assets for each month
+    // An asset counts as active in a month if it was created before/during that month and status is 'active'
+    if (data) {
+      months.forEach((monthData, idx) => {
+        const monthStart = new Date(now.getFullYear(), now.getMonth() - (5 - idx), 1)
+        const monthEnd = new Date(now.getFullYear(), now.getMonth() - (5 - idx) + 1, 0, 23, 59, 59)
+
+        data.forEach(asset => {
+          const createdAt = new Date(asset.created_at)
+          // Asset exists by end of this month
+          if (createdAt <= monthEnd) {
+            monthData.total++
+            if (asset.status === 'active') {
+              monthData.active++
+            }
+          }
+        })
+      })
+    }
+
+    monthlyData.value = months
+  } catch (error) {
+    console.error('Error fetching monthly data:', error)
+  }
+}
 
 // Recent activities from database
 interface Activity {
@@ -259,6 +308,7 @@ async function fetchStats() {
 onMounted(() => {
   fetchStats()
   fetchRecentActivities()
+  fetchMonthlyData()
 })
 </script>
 
@@ -303,29 +353,35 @@ onMounted(() => {
 
       <!-- Charts Row -->
       <div class="grid lg:grid-cols-3 gap-6 mt-6">
-        <!-- Asset Trend Chart -->
+        <!-- Active Assets Trend Chart -->
         <div class="lg:col-span-2 bg-card border rounded-2xl p-6">
-          <h3 class="font-semibold text-foreground mb-1">Asset Growth</h3>
-          <p class="text-sm text-muted-foreground mb-6">Monthly asset additions</p>
+          <h3 class="font-semibold text-foreground mb-1">Active Assets Trend</h3>
+          <p class="text-sm text-muted-foreground mb-6">Total active assets per month</p>
 
           <!-- Bar Chart -->
-          <div class="flex items-end justify-between gap-3 h-48">
+          <div v-if="monthlyData.length === 0" class="flex items-center justify-center h-48">
+            <p class="text-sm text-muted-foreground">Loading...</p>
+          </div>
+          <div v-else class="flex items-end justify-between gap-3 h-48">
             <div
               v-for="data in monthlyData"
-              :key="data.month"
+              :key="`${data.month}-${data.year}`"
               class="flex-1 flex flex-col items-center gap-2"
             >
-              <div class="w-full bg-muted rounded-t-lg relative group cursor-default" style="min-height: 8px;">
+              <div class="w-full bg-muted rounded-t-lg relative group cursor-default h-full">
                 <div
-                  class="absolute bottom-0 left-0 right-0 bg-primary rounded-t-lg transition-all duration-500 group-hover:bg-primary/80"
-                  :style="{ height: `${(data.assets / maxMonthly) * 100}%`, minHeight: '8px' }"
+                  class="absolute bottom-0 left-0 right-0 bg-emerald-500 rounded-t-lg transition-all duration-500 group-hover:bg-emerald-400"
+                  :style="{ height: `${(data.active / maxMonthly) * 100}%`, minHeight: data.active > 0 ? '8px' : '0' }"
                 >
-                  <div class="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-foreground text-background text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                    {{ data.assets }} assets
+                  <div class="absolute -top-10 left-1/2 -translate-x-1/2 px-2 py-1 bg-foreground text-background text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                    {{ data.active }} active
                   </div>
                 </div>
               </div>
-              <span class="text-xs text-muted-foreground">{{ data.month }}</span>
+              <div class="text-center">
+                <span class="text-xs text-muted-foreground block">{{ data.month }}</span>
+                <span class="text-[10px] text-muted-foreground/60">{{ data.year }}</span>
+              </div>
             </div>
           </div>
         </div>
