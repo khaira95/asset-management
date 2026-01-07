@@ -32,8 +32,10 @@ const form = ref({
   status: 'active' as Asset['status'],
   staff_id: '' as string | number,
   purchase_date: '',
-  description: ''
+  description: '',
+  status_date: '' // Date for status change
 })
+const originalStatus = ref<Asset['status'] | null>(null)
 const formError = ref('')
 
 // History modal state
@@ -103,6 +105,7 @@ watch(() => form.value.category_id, async (newCategoryId) => {
 
 function openCreate() {
   editingId.value = null
+  originalStatus.value = null
   form.value = {
     asset_name: '',
     serial_number: '',
@@ -110,7 +113,8 @@ function openCreate() {
     status: 'active',
     staff_id: '',
     purchase_date: '',
-    description: ''
+    description: '',
+    status_date: ''
   }
   formError.value = ''
   showModal.value = true
@@ -118,6 +122,7 @@ function openCreate() {
 
 function openEdit(asset: AssetWithRelations) {
   editingId.value = asset.id
+  originalStatus.value = asset.status
   form.value = {
     asset_name: asset.asset_name,
     serial_number: asset.serial_number || '',
@@ -125,7 +130,8 @@ function openEdit(asset: AssetWithRelations) {
     status: asset.status,
     staff_id: asset.staff_id || '',
     purchase_date: asset.purchase_date || '',
-    description: asset.description || ''
+    description: asset.description || '',
+    status_date: new Date().toISOString().split('T')[0] // Default to today
   }
   formError.value = ''
   showModal.value = true
@@ -194,9 +200,10 @@ async function saveAsset() {
 
       if (error) throw error
 
-      // Track changes
+      // Track changes (pass status_date if status changed)
       if (oldAsset) {
-        await trackChanges(editingId.value, oldAsset, payload)
+        const statusDate = form.value.status !== originalStatus.value ? form.value.status_date : undefined
+        await trackChanges(editingId.value, oldAsset, payload, statusDate)
       }
     } else {
       const { data, error } = await supabase.from('assets').insert(payload).select().single()
@@ -301,7 +308,7 @@ function closeHistoryModal() {
   assetHistory.value = []
 }
 
-async function trackChanges(assetId: number, oldAsset: AssetWithRelations, newData: any) {
+async function trackChanges(assetId: number, oldAsset: AssetWithRelations, newData: any, statusDate?: string) {
   try {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
@@ -309,13 +316,18 @@ async function trackChanges(assetId: number, oldAsset: AssetWithRelations, newDa
       return
     }
 
-    const changes: { field_name: string; old_value: string | null; new_value: string | null }[] = []
+    const changes: { field_name: string; old_value: string | null; new_value: string | null; custom_date?: string }[] = []
 
     // Compare fields - use String() for consistent comparison
     const oldStatus = String(oldAsset.status || '')
     const newStatus = String(newData.status || '')
     if (oldStatus !== newStatus) {
-      changes.push({ field_name: 'status', old_value: oldAsset.status, new_value: newData.status })
+      changes.push({
+        field_name: 'status',
+        old_value: oldAsset.status,
+        new_value: newData.status,
+        custom_date: statusDate // Use custom date for status changes
+      })
     }
 
     const oldStaffId = oldAsset.staff_id ? Number(oldAsset.staff_id) : null
@@ -354,14 +366,21 @@ async function trackChanges(assetId: number, oldAsset: AssetWithRelations, newDa
 
     // Insert all changes
     for (const change of changes) {
-      const { error } = await supabase.from('asset_history').insert({
+      const insertData: any = {
         asset_id: assetId,
         user_id: user.id,
         field_name: change.field_name,
         old_value: change.old_value,
         new_value: change.new_value,
         change_type: 'update'
-      })
+      }
+
+      // Use custom date if provided (for status changes)
+      if (change.custom_date) {
+        insertData.created_at = new Date(change.custom_date + 'T12:00:00').toISOString()
+      }
+
+      const { error } = await supabase.from('asset_history').insert(insertData)
       if (error) {
         console.error('Error inserting history:', error)
       }
@@ -562,6 +581,28 @@ onMounted(fetchData)
                 {{ status.charAt(0).toUpperCase() + status.slice(1) }}
               </option>
             </select>
+          </div>
+        </div>
+
+        <!-- Status Change Date (only show when editing and status changed) -->
+        <div v-if="editingId && form.status !== originalStatus" class="p-4 bg-amber-50 border border-amber-200 rounded-xl">
+          <div class="flex items-start gap-3">
+            <div class="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0">
+              <Clock class="w-4 h-4 text-amber-600" />
+            </div>
+            <div class="flex-1">
+              <p class="text-sm font-medium text-amber-800 mb-2">
+                Status change: {{ originalStatus }} → {{ form.status }}
+              </p>
+              <div class="space-y-1">
+                <label class="block text-xs font-medium text-amber-700">Date of status change</label>
+                <input
+                  v-model="form.status_date"
+                  type="date"
+                  class="w-full h-10 px-3 bg-white border border-amber-300 rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
+                />
+              </div>
+            </div>
           </div>
         </div>
 
