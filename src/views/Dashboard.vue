@@ -435,6 +435,12 @@ onMounted(() => {
               :key="`${data.month}-${data.year}`"
               class="flex-1 flex flex-col h-full"
             >
+              <!-- Total badge on top -->
+              <div class="text-center mb-2">
+                <span v-if="data.total > 0" class="inline-flex items-center justify-center px-2 py-0.5 text-xs font-semibold bg-primary/10 text-primary rounded-full">
+                  {{ data.total }}
+                </span>
+              </div>
               <!-- Clustered bars for each status with numbers on top -->
               <div class="flex-1 flex items-end justify-center gap-2">
                 <!-- Active -->
@@ -470,9 +476,8 @@ onMounted(() => {
                   ></div>
                 </div>
               </div>
-              <!-- Month Labels with Total -->
+              <!-- Month Labels -->
               <div class="text-center pt-3 mt-2 border-t border-border/50">
-                <span class="text-sm font-semibold text-foreground block">{{ data.total }}</span>
                 <span class="text-sm text-muted-foreground block">{{ data.month }}</span>
                 <span class="text-xs text-muted-foreground/60">{{ data.year }}</span>
               </div>
