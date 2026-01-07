@@ -76,6 +76,23 @@ const assetDistribution = computed(() => {
   ]
 })
 
+// License stats
+interface LicenseStats {
+  active: number
+  expiringSoon: number
+  expired: number
+  seatsUsed: number
+  seatsTotal: number
+}
+
+const licenseStats = ref<LicenseStats>({
+  active: 0,
+  expiringSoon: 0,
+  expired: 0,
+  seatsUsed: 0,
+  seatsTotal: 0
+})
+
 // Monthly assets data by status
 interface MonthlyData {
   month: string
@@ -355,11 +372,13 @@ async function fetchStats() {
       supabase.from('assets').select('status'),
       supabase.from('staff').select('id', { count: 'exact', head: true }),
       supabase.from('locations').select('id', { count: 'exact', head: true }),
-      supabase.from('licenses').select('expiration_date')
+      supabase.from('licenses').select('expiration_date, seats_used, seats_total')
     ])
 
     const assetData = assets.data || []
+    const licenseData = licenses.data || []
     const today = new Date()
+    today.setHours(0, 0, 0, 0)
     const thirtyDaysFromNow = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000)
 
     stats.value = {
@@ -370,12 +389,45 @@ async function fetchStats() {
       disposedAssets: assetData.filter(a => a.status === 'disposed').length,
       totalStaff: staff.count || 0,
       totalLocations: locations.count || 0,
-      totalLicenses: (licenses.data || []).length,
-      expiringLicenses: (licenses.data || []).filter(l => {
+      totalLicenses: licenseData.length,
+      expiringLicenses: licenseData.filter(l => {
         if (!l.expiration_date) return false
         const expDate = new Date(l.expiration_date)
         return expDate <= thirtyDaysFromNow && expDate >= today
       }).length
+    }
+
+    // Calculate license stats
+    let active = 0
+    let expiringSoon = 0
+    let expired = 0
+    let seatsUsed = 0
+    let seatsTotal = 0
+
+    licenseData.forEach(l => {
+      seatsUsed += l.seats_used || 0
+      seatsTotal += l.seats_total || 0
+
+      if (!l.expiration_date) {
+        active++ // No expiration = active
+      } else {
+        const expDate = new Date(l.expiration_date)
+        if (expDate < today) {
+          expired++
+        } else if (expDate <= thirtyDaysFromNow) {
+          expiringSoon++
+        } else {
+          active++
+        }
+      }
+    })
+
+    licenseStats.value = {
+      active,
+      expiringSoon,
+      expired,
+      seatsUsed,
+      seatsTotal
     }
   } catch (error) {
     console.error('Error fetching stats:', error)
@@ -430,96 +482,122 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- Asset Trends Chart - Clustered Column (BIGGER) -->
-      <div class="bg-card border rounded-xl p-6">
-        <div class="flex items-start justify-between mb-6">
-          <div>
-            <h3 class="text-lg font-semibold text-foreground">Asset Trends</h3>
+      <!-- Asset Trends + Recent Activity Row -->
+      <div class="grid lg:grid-cols-2 gap-6">
+        <!-- Asset Trends Chart -->
+        <div class="bg-card border rounded-xl p-5">
+          <div class="flex items-start justify-between mb-4">
+            <div>
+              <h3 class="font-semibold text-foreground">Asset Trends</h3>
+              <p class="text-xs text-muted-foreground">Last 6 months</p>
+            </div>
           </div>
           <!-- Legend -->
-          <div class="flex items-center gap-5 text-sm">
-            <div class="flex items-center gap-2">
-              <div class="w-3 h-3 rounded-full bg-emerald-500"></div>
+          <div class="flex flex-wrap items-center gap-3 text-xs mb-4">
+            <div class="flex items-center gap-1.5">
+              <div class="w-2.5 h-2.5 rounded-full bg-emerald-500"></div>
               <span class="text-muted-foreground">Active</span>
             </div>
-            <div class="flex items-center gap-2">
-              <div class="w-3 h-3 rounded-full bg-amber-500"></div>
+            <div class="flex items-center gap-1.5">
+              <div class="w-2.5 h-2.5 rounded-full bg-amber-500"></div>
               <span class="text-muted-foreground">Maintenance</span>
             </div>
-            <div class="flex items-center gap-2">
-              <div class="w-3 h-3 rounded-full bg-gray-400"></div>
+            <div class="flex items-center gap-1.5">
+              <div class="w-2.5 h-2.5 rounded-full bg-gray-400"></div>
               <span class="text-muted-foreground">Inactive</span>
             </div>
-            <div class="flex items-center gap-2">
-              <div class="w-3 h-3 rounded-full bg-red-500"></div>
+            <div class="flex items-center gap-1.5">
+              <div class="w-2.5 h-2.5 rounded-full bg-red-500"></div>
               <span class="text-muted-foreground">Disposed</span>
+            </div>
+          </div>
+
+          <!-- Clustered Column Chart -->
+          <div v-if="monthlyData.length === 0" class="flex items-center justify-center h-48">
+            <p class="text-sm text-muted-foreground">Loading...</p>
+          </div>
+          <div v-else class="h-48">
+            <div class="flex items-end justify-around h-full gap-3 px-2">
+              <div
+                v-for="data in monthlyData"
+                :key="`${data.month}-${data.year}`"
+                class="flex-1 flex flex-col h-full"
+              >
+                <!-- Total badge on top -->
+                <div class="text-center mb-1">
+                  <span v-if="data.total > 0" class="inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-semibold bg-primary/10 text-primary rounded-full">
+                    {{ data.total }}
+                  </span>
+                </div>
+                <!-- Clustered bars -->
+                <div class="flex-1 flex items-end justify-center gap-1">
+                  <div
+                    class="w-4 bg-emerald-500 rounded-t transition-all duration-500"
+                    :style="{ height: `${maxMonthly > 0 ? (data.active / maxMonthly) * 100 : 0}%`, minHeight: data.active > 0 ? '4px' : '0' }"
+                    :title="`Active: ${data.active}`"
+                  ></div>
+                  <div
+                    class="w-4 bg-amber-500 rounded-t transition-all duration-500"
+                    :style="{ height: `${maxMonthly > 0 ? (data.maintenance / maxMonthly) * 100 : 0}%`, minHeight: data.maintenance > 0 ? '4px' : '0' }"
+                    :title="`Maintenance: ${data.maintenance}`"
+                  ></div>
+                  <div
+                    class="w-4 bg-gray-400 rounded-t transition-all duration-500"
+                    :style="{ height: `${maxMonthly > 0 ? (data.inactive / maxMonthly) * 100 : 0}%`, minHeight: data.inactive > 0 ? '4px' : '0' }"
+                    :title="`Inactive: ${data.inactive}`"
+                  ></div>
+                  <div
+                    class="w-4 bg-red-500 rounded-t transition-all duration-500"
+                    :style="{ height: `${maxMonthly > 0 ? (data.disposed / maxMonthly) * 100 : 0}%`, minHeight: data.disposed > 0 ? '4px' : '0' }"
+                    :title="`Disposed: ${data.disposed}`"
+                  ></div>
+                </div>
+                <!-- Month Labels -->
+                <div class="text-center pt-2 mt-1 border-t border-border/50">
+                  <span class="text-xs text-muted-foreground">{{ data.month }}</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
-        <!-- Clustered Column Chart -->
-        <div v-if="monthlyData.length === 0" class="flex items-center justify-center h-90">
-          <p class="text-sm text-muted-foreground">Loading...</p>
-        </div>
-        <div v-else class="h-64">
-          <div class="flex items-end justify-around h-full gap-6 px-4">
-            <div
-              v-for="data in monthlyData"
-              :key="`${data.month}-${data.year}`"
-              class="flex-1 flex flex-col h-full"
-            >
-              <!-- Total badge on top -->
-              <div class="text-center mb-2">
-                <span v-if="data.total > 0" class="inline-flex items-center justify-center px-2 py-0.5 text-xs font-semibold bg-primary/10 text-primary rounded-full">
-                  {{ data.total }}
-                </span>
+        <!-- Recent Activity -->
+        <div class="bg-card border rounded-xl p-5">
+          <div class="mb-4">
+            <h3 class="font-semibold text-foreground">Recent Activity</h3>
+            <p class="text-xs text-muted-foreground">Latest updates</p>
+          </div>
+
+          <div v-if="recentActivities.length === 0" class="text-center py-6">
+            <Clock class="w-6 h-6 text-muted-foreground/30 mx-auto mb-2" />
+            <p class="text-sm text-muted-foreground">No recent activity</p>
+          </div>
+          <div v-else class="max-h-56 overflow-y-auto space-y-4 pr-2">
+            <div v-for="group in activitiesByDate" :key="group.date">
+              <div class="sticky top-0 bg-card py-1 mb-2">
+                <span class="text-xs font-semibold text-primary">{{ group.label }}</span>
               </div>
-              <!-- Clustered bars for each status with numbers on top -->
-              <div class="flex-1 flex items-end justify-center gap-2">
-                <!-- Active -->
-                <div class="flex flex-col items-center justify-end h-full">
-                  <span v-if="data.active > 0" class="text-xs font-semibold text-emerald-600 mb-1">{{ data.active }}</span>
-                  <div
-                    class="w-8 bg-emerald-500 rounded-t transition-all duration-500"
-                    :style="{ height: `${maxMonthly > 0 ? (data.active / maxMonthly) * 100 : 0}%`, minHeight: data.active > 0 ? '4px' : '0' }"
-                  ></div>
+              <div class="space-y-2">
+                <div
+                  v-for="(activity, index) in group.activities"
+                  :key="index"
+                  class="flex items-center gap-3"
+                >
+                  <div :class="['w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0', activity.iconBg]">
+                    <component :is="activity.icon" class="w-3.5 h-3.5 text-white" />
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <p class="text-sm font-medium text-foreground truncate">{{ activity.item }}</p>
+                  </div>
+                  <span class="text-xs text-muted-foreground">{{ activity.time }}</span>
                 </div>
-                <!-- Maintenance -->
-                <div class="flex flex-col items-center justify-end h-full">
-                  <span v-if="data.maintenance > 0" class="text-xs font-semibold text-amber-600 mb-1">{{ data.maintenance }}</span>
-                  <div
-                    class="w-8 bg-amber-500 rounded-t transition-all duration-500"
-                    :style="{ height: `${maxMonthly > 0 ? (data.maintenance / maxMonthly) * 100 : 0}%`, minHeight: data.maintenance > 0 ? '4px' : '0' }"
-                  ></div>
-                </div>
-                <!-- Inactive -->
-                <div class="flex flex-col items-center justify-end h-full">
-                  <span v-if="data.inactive > 0" class="text-xs font-semibold text-gray-500 mb-1">{{ data.inactive }}</span>
-                  <div
-                    class="w-8 bg-gray-400 rounded-t transition-all duration-500"
-                    :style="{ height: `${maxMonthly > 0 ? (data.inactive / maxMonthly) * 100 : 0}%`, minHeight: data.inactive > 0 ? '4px' : '0' }"
-                  ></div>
-                </div>
-                <!-- Disposed -->
-                <div class="flex flex-col items-center justify-end h-full">
-                  <span v-if="data.disposed > 0" class="text-xs font-semibold text-red-600 mb-1">{{ data.disposed }}</span>
-                  <div
-                    class="w-8 bg-red-500 rounded-t transition-all duration-500"
-                    :style="{ height: `${maxMonthly > 0 ? (data.disposed / maxMonthly) * 100 : 0}%`, minHeight: data.disposed > 0 ? '4px' : '0' }"
-                  ></div>
-                </div>
-              </div>
-              <!-- Month Labels -->
-              <div class="text-center pt-3 mt-2 border-t border-border/50">
-                <span class="text-sm text-muted-foreground block">{{ data.month }}</span>
-                <span class="text-xs text-muted-foreground/60">{{ data.year }}</span>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Bottom Row: Asset Status + Recent Activity -->
+      <!-- Asset Status + License Status Row -->
       <div class="grid lg:grid-cols-2 gap-6">
         <!-- Asset Status -->
         <div class="bg-card border rounded-xl p-5">
@@ -590,38 +668,70 @@ onMounted(() => {
           </div>
         </div>
 
-        <!-- Recent Activity -->
+        <!-- License Status -->
         <div class="bg-card border rounded-xl p-5">
-          <div class="mb-4">
-            <h3 class="font-semibold text-foreground">Recent Activity</h3>
-            <p class="text-xs text-muted-foreground">Latest updates</p>
+          <div class="flex items-center justify-between mb-5">
+            <div>
+              <h3 class="font-semibold text-foreground">License Status</h3>
+              <p class="text-xs text-muted-foreground">Software licenses</p>
+            </div>
+            <div class="text-right">
+              <span class="text-2xl font-bold text-foreground">{{ stats.totalLicenses }}</span>
+              <p class="text-xs text-muted-foreground">Total Licenses</p>
+            </div>
           </div>
 
-          <div v-if="recentActivities.length === 0" class="text-center py-6">
-            <Clock class="w-6 h-6 text-muted-foreground/30 mx-auto mb-2" />
-            <p class="text-sm text-muted-foreground">No recent activity</p>
-          </div>
-          <div v-else class="max-h-48 overflow-y-auto space-y-4 pr-2">
-            <div v-for="group in activitiesByDate" :key="group.date">
-              <!-- Date header -->
-              <div class="sticky top-0 bg-card py-1 mb-2">
-                <span class="text-xs font-semibold text-primary">{{ group.label }}</span>
-              </div>
-              <!-- Activities for this date -->
-              <div class="space-y-2">
-                <div
-                  v-for="(activity, index) in group.activities"
-                  :key="index"
-                  class="flex items-center gap-3"
-                >
-                  <div :class="['w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0', activity.iconBg]">
-                    <component :is="activity.icon" class="w-3.5 h-3.5 text-white" />
-                  </div>
-                  <div class="flex-1 min-w-0">
-                    <p class="text-sm font-medium text-foreground truncate">{{ activity.item }}</p>
-                  </div>
-                  <span class="text-xs text-muted-foreground">{{ activity.time }}</span>
+          <!-- License status cards -->
+          <div class="grid grid-cols-2 gap-3">
+            <div class="p-3 rounded-xl bg-emerald-50 border border-emerald-100">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <div class="w-2 h-2 rounded-full bg-emerald-500"></div>
+                  <span class="text-sm text-emerald-700">Active</span>
                 </div>
+                <span class="text-lg font-bold text-emerald-600">{{ licenseStats.active }}</span>
+              </div>
+              <div class="mt-2 h-1.5 bg-emerald-100 rounded-full overflow-hidden">
+                <div class="h-full bg-emerald-500 rounded-full transition-all duration-500" :style="{ width: `${stats.totalLicenses ? (licenseStats.active / stats.totalLicenses) * 100 : 0}%` }"></div>
+              </div>
+            </div>
+
+            <div class="p-3 rounded-xl bg-amber-50 border border-amber-100">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <div class="w-2 h-2 rounded-full bg-amber-500"></div>
+                  <span class="text-sm text-amber-700">Expiring Soon</span>
+                </div>
+                <span class="text-lg font-bold text-amber-600">{{ licenseStats.expiringSoon }}</span>
+              </div>
+              <div class="mt-2 h-1.5 bg-amber-100 rounded-full overflow-hidden">
+                <div class="h-full bg-amber-500 rounded-full transition-all duration-500" :style="{ width: `${stats.totalLicenses ? (licenseStats.expiringSoon / stats.totalLicenses) * 100 : 0}%` }"></div>
+              </div>
+            </div>
+
+            <div class="p-3 rounded-xl bg-red-50 border border-red-100">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <div class="w-2 h-2 rounded-full bg-red-500"></div>
+                  <span class="text-sm text-red-700">Expired</span>
+                </div>
+                <span class="text-lg font-bold text-red-600">{{ licenseStats.expired }}</span>
+              </div>
+              <div class="mt-2 h-1.5 bg-red-100 rounded-full overflow-hidden">
+                <div class="h-full bg-red-500 rounded-full transition-all duration-500" :style="{ width: `${stats.totalLicenses ? (licenseStats.expired / stats.totalLicenses) * 100 : 0}%` }"></div>
+              </div>
+            </div>
+
+            <div class="p-3 rounded-xl bg-sky-50 border border-sky-100">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <div class="w-2 h-2 rounded-full bg-sky-500"></div>
+                  <span class="text-sm text-sky-700">Seats Used</span>
+                </div>
+                <span class="text-lg font-bold text-sky-600">{{ licenseStats.seatsUsed }}/{{ licenseStats.seatsTotal }}</span>
+              </div>
+              <div class="mt-2 h-1.5 bg-sky-100 rounded-full overflow-hidden">
+                <div class="h-full bg-sky-500 rounded-full transition-all duration-500" :style="{ width: `${licenseStats.seatsTotal ? (licenseStats.seatsUsed / licenseStats.seatsTotal) * 100 : 0}%` }"></div>
               </div>
             </div>
           </div>
