@@ -362,66 +362,8 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- Asset Status Overview - Full Width -->
-      <div class="bg-card border rounded-2xl p-5 mt-4">
-        <div class="flex flex-col lg:flex-row lg:items-center gap-6">
-          <!-- Left: Donut Chart -->
-          <div class="flex-shrink-0 flex items-center gap-4">
-            <div class="relative w-28 h-28">
-              <!-- Background circle -->
-              <svg class="w-full h-full -rotate-90" viewBox="0 0 100 100">
-                <circle
-                  cx="50" cy="50" r="40"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="12"
-                  class="text-muted"
-                />
-                <!-- Active segment -->
-                <circle
-                  cx="50" cy="50" r="40"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="12"
-                  stroke-linecap="round"
-                  class="text-emerald-500"
-                  :stroke-dasharray="`${assetDistribution[0].percent * 2.51} 251`"
-                />
-              </svg>
-              <!-- Center text -->
-              <div class="absolute inset-0 flex flex-col items-center justify-center">
-                <span class="text-2xl font-bold text-foreground">{{ stats.totalAssets }}</span>
-                <span class="text-[10px] text-muted-foreground">Total</span>
-              </div>
-            </div>
-            <div>
-              <h3 class="font-semibold text-foreground">Asset Status</h3>
-              <p class="text-xs text-muted-foreground">Current distribution</p>
-            </div>
-          </div>
-
-          <!-- Right: Status Breakdown Cards -->
-          <div class="flex-1">
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div
-                v-for="item in assetDistribution"
-                :key="item.label"
-                class="p-3 rounded-xl border bg-muted/30"
-              >
-                <div class="flex items-center gap-2 mb-1">
-                  <div :class="['w-2.5 h-2.5 rounded-full', item.color]" />
-                  <span class="text-xs text-muted-foreground">{{ item.label }}</span>
-                </div>
-                <p class="text-xl font-bold text-foreground">{{ item.value }}</p>
-                <p class="text-[10px] text-muted-foreground">{{ item.percent }}%</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
       <!-- Asset Trends Chart -->
-      <div class="bg-card border rounded-2xl p-5 mt-4">
+      <div class="bg-card border rounded-xl p-5 mt-4">
         <div class="flex items-start justify-between mb-3">
           <div>
             <h3 class="font-semibold text-foreground">Asset Trends</h3>
@@ -448,62 +390,58 @@ onMounted(() => {
           </div>
         </div>
 
-        <!-- Stacked Bar Chart -->
-        <div v-if="monthlyData.length === 0" class="flex items-center justify-center h-36">
+        <!-- Stacked Bar Chart with Labels -->
+        <div v-if="monthlyData.length === 0" class="flex items-center justify-center h-40">
           <p class="text-sm text-muted-foreground">Loading...</p>
         </div>
-        <div v-else class="flex items-end justify-between gap-3 h-36">
+        <div v-else class="flex items-end justify-between gap-2 h-40">
           <div
             v-for="data in monthlyData"
             :key="`${data.month}-${data.year}`"
-            class="flex-1 flex flex-col items-center gap-2"
+            class="flex-1 flex flex-col items-center gap-1"
           >
-            <!-- Stacked bar -->
-            <div class="w-full relative group cursor-default h-full flex flex-col justify-end">
-              <!-- Tooltip -->
-              <div class="absolute -top-2 left-1/2 -translate-x-1/2 -translate-y-full px-3 py-2 bg-foreground text-background text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-20 shadow-lg">
-                <p class="font-semibold mb-1">{{ data.month }} {{ data.year }}</p>
-                <p class="text-emerald-300">Active: {{ data.active }}</p>
-                <p class="text-amber-300">Maintenance: {{ data.maintenance }}</p>
-                <p class="text-gray-300">Inactive: {{ data.inactive }}</p>
-                <p class="text-red-300">Disposed: {{ data.disposed }}</p>
-                <p class="border-t border-white/20 mt-1 pt-1 font-medium">Total: {{ data.total }}</p>
-              </div>
-
-              <!-- Stacked segments -->
+            <!-- Stacked bar with labels -->
+            <div class="w-full h-full flex flex-col justify-end">
               <div
-                class="w-full flex flex-col-reverse rounded-t-lg overflow-hidden transition-all duration-500"
-                :style="{ height: `${(data.total / maxMonthly) * 100}%`, minHeight: data.total > 0 ? '4px' : '0' }"
+                class="w-full flex flex-col-reverse rounded-t-lg overflow-hidden"
+                :style="{ height: `${(data.total / maxMonthly) * 100}%`, minHeight: data.total > 0 ? '20px' : '0' }"
               >
                 <!-- Active (bottom) -->
                 <div
                   v-if="data.active > 0"
-                  class="w-full bg-emerald-500 group-hover:bg-emerald-400 transition-colors"
-                  :style="{ height: `${(data.active / data.total) * 100}%` }"
-                ></div>
+                  class="w-full bg-emerald-500 flex items-center justify-center"
+                  :style="{ height: `${(data.active / data.total) * 100}%`, minHeight: '18px' }"
+                >
+                  <span class="text-[10px] font-medium text-white">{{ data.active }}</span>
+                </div>
                 <!-- Maintenance -->
                 <div
                   v-if="data.maintenance > 0"
-                  class="w-full bg-amber-500 group-hover:bg-amber-400 transition-colors"
-                  :style="{ height: `${(data.maintenance / data.total) * 100}%` }"
-                ></div>
+                  class="w-full bg-amber-500 flex items-center justify-center"
+                  :style="{ height: `${(data.maintenance / data.total) * 100}%`, minHeight: '18px' }"
+                >
+                  <span class="text-[10px] font-medium text-white">{{ data.maintenance }}</span>
+                </div>
                 <!-- Inactive -->
                 <div
                   v-if="data.inactive > 0"
-                  class="w-full bg-gray-400 group-hover:bg-gray-300 transition-colors"
-                  :style="{ height: `${(data.inactive / data.total) * 100}%` }"
-                ></div>
+                  class="w-full bg-gray-400 flex items-center justify-center"
+                  :style="{ height: `${(data.inactive / data.total) * 100}%`, minHeight: '18px' }"
+                >
+                  <span class="text-[10px] font-medium text-white">{{ data.inactive }}</span>
+                </div>
                 <!-- Disposed (top) -->
                 <div
                   v-if="data.disposed > 0"
-                  class="w-full bg-red-500 group-hover:bg-red-400 transition-colors"
-                  :style="{ height: `${(data.disposed / data.total) * 100}%` }"
-                ></div>
+                  class="w-full bg-red-500 flex items-center justify-center"
+                  :style="{ height: `${(data.disposed / data.total) * 100}%`, minHeight: '18px' }"
+                >
+                  <span class="text-[10px] font-medium text-white">{{ data.disposed }}</span>
+                </div>
               </div>
             </div>
-            <!-- Labels -->
-            <div class="text-center">
-              <span class="text-sm font-semibold text-foreground block">{{ data.total }}</span>
+            <!-- Month Labels -->
+            <div class="text-center pt-1 border-t border-border w-full">
               <span class="text-xs text-muted-foreground block">{{ data.month }}</span>
               <span class="text-[10px] text-muted-foreground/60">{{ data.year }}</span>
             </div>
@@ -511,31 +449,63 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- Recent Activity - Full Width -->
-      <div class="bg-card border rounded-2xl p-5 mt-4">
-        <div class="flex items-center justify-between mb-3">
-          <div>
-            <h3 class="font-semibold text-foreground">Recent Activity</h3>
-            <p class="text-sm text-muted-foreground">Latest updates</p>
+      <!-- Bottom Row: Asset Status + Recent Activity -->
+      <div class="grid lg:grid-cols-2 gap-4 mt-4">
+        <!-- Asset Status -->
+        <div class="bg-card border rounded-xl p-4">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="relative w-20 h-20">
+              <svg class="w-full h-full -rotate-90" viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="40" fill="none" stroke="currentColor" stroke-width="12" class="text-muted" />
+                <circle cx="50" cy="50" r="40" fill="none" stroke="currentColor" stroke-width="12" stroke-linecap="round" class="text-emerald-500" :stroke-dasharray="`${assetDistribution[0].percent * 2.51} 251`" />
+              </svg>
+              <div class="absolute inset-0 flex flex-col items-center justify-center">
+                <span class="text-lg font-bold text-foreground">{{ stats.totalAssets }}</span>
+                <span class="text-[9px] text-muted-foreground">Total</span>
+              </div>
+            </div>
+            <div>
+              <h3 class="font-semibold text-foreground text-sm">Asset Status</h3>
+              <p class="text-[10px] text-muted-foreground">Current distribution</p>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <div
+              v-for="item in assetDistribution"
+              :key="item.label"
+              class="flex items-center gap-2 p-2 rounded-lg bg-muted/30"
+            >
+              <div :class="['w-2 h-2 rounded-full', item.color]" />
+              <span class="text-xs text-muted-foreground">{{ item.label }}</span>
+              <span class="text-xs font-semibold text-foreground ml-auto">{{ item.value }}</span>
+            </div>
           </div>
         </div>
 
-        <div v-if="recentActivities.length === 0" class="text-center py-6">
-          <Clock class="w-6 h-6 text-muted-foreground/30 mx-auto mb-2" />
-          <p class="text-sm text-muted-foreground">No recent activity yet</p>
-        </div>
-        <div v-else class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-          <div
-            v-for="(activity, index) in recentActivities"
-            :key="index"
-            class="flex items-center gap-3 p-3 rounded-xl bg-muted/30 hover:bg-muted/50 transition-colors"
-          >
-            <div :class="['w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0', activity.iconBg]">
-              <component :is="activity.icon" class="w-4 h-4 text-white" />
-            </div>
-            <div class="flex-1 min-w-0">
-              <p class="text-xs font-medium text-foreground truncate">{{ activity.item }}</p>
-              <p class="text-xs text-muted-foreground">{{ activity.time }}</p>
+        <!-- Recent Activity -->
+        <div class="bg-card border rounded-xl p-4">
+          <div class="mb-3">
+            <h3 class="font-semibold text-foreground text-sm">Recent Activity</h3>
+            <p class="text-[10px] text-muted-foreground">Latest updates</p>
+          </div>
+
+          <div v-if="recentActivities.length === 0" class="text-center py-4">
+            <Clock class="w-5 h-5 text-muted-foreground/30 mx-auto mb-1" />
+            <p class="text-xs text-muted-foreground">No recent activity</p>
+          </div>
+          <div v-else class="space-y-2">
+            <div
+              v-for="(activity, index) in recentActivities.slice(0, 4)"
+              :key="index"
+              class="flex items-center gap-2 p-2 rounded-lg bg-muted/30"
+            >
+              <div :class="['w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0', activity.iconBg]">
+                <component :is="activity.icon" class="w-3 h-3 text-white" />
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="text-xs font-medium text-foreground truncate">{{ activity.item }}</p>
+              </div>
+              <span class="text-[10px] text-muted-foreground">{{ activity.time }}</span>
             </div>
           </div>
         </div>
