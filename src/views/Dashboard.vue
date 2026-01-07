@@ -107,6 +107,12 @@ async function fetchMonthlyData() {
     const assets = assetsRes.data || []
     const history = historyRes.data || []
 
+    // Debug: check history with effective_date
+    const statusHistory = history.filter(h => h.effective_date)
+    if (statusHistory.length > 0) {
+      console.log('History with effective_date:', statusHistory)
+    }
+
     // Get last 6 months
     const months: MonthlyData[] = []
     const now = new Date()
@@ -348,16 +354,16 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="p-4 lg:p-6">
+  <div class="p-6 lg:p-8 min-h-screen">
     <!-- Header -->
-    <div class="mb-4">
+    <div class="mb-6">
       <div class="flex items-center gap-3">
-        <div class="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
-          <LayoutDashboard class="w-4 h-4 text-primary" />
+        <div class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+          <LayoutDashboard class="w-5 h-5 text-primary" />
         </div>
         <div>
-          <h1 class="text-xl font-semibold text-foreground tracking-tight">Dashboard</h1>
-          <p class="text-xs text-muted-foreground">Asset inventory overview</p>
+          <h1 class="text-2xl font-semibold text-foreground tracking-tight">Dashboard</h1>
+          <p class="text-sm text-muted-foreground">Asset inventory overview</p>
         </div>
       </div>
     </div>
@@ -367,47 +373,47 @@ onMounted(() => {
       <div v-for="i in 4" :key="i" class="h-28 bg-card border rounded-2xl animate-pulse" />
     </div>
 
-    <div v-else>
+    <div v-else class="space-y-6">
       <!-- Stats grid - 4 columns -->
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 stagger-children">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 stagger-children">
         <div
           v-for="stat in statCards"
           :key="stat.label"
-          class="group bg-card border rounded-xl p-3 hover:shadow-lg hover:shadow-black/5 hover:-translate-y-0.5 transition-all duration-300 cursor-default"
+          class="group bg-card border rounded-xl p-4 hover:shadow-lg hover:shadow-black/5 hover:-translate-y-0.5 transition-all duration-300 cursor-default"
         >
-          <div class="flex items-center justify-between mb-2">
-            <div :class="['w-8 h-8 rounded-lg flex items-center justify-center', stat.iconBg]">
-              <component :is="stat.icon" class="w-4 h-4 text-white" />
+          <div class="flex items-center justify-between mb-3">
+            <div :class="['w-10 h-10 rounded-xl flex items-center justify-center', stat.iconBg]">
+              <component :is="stat.icon" class="w-5 h-5 text-white" />
             </div>
-            <ArrowUpRight class="w-3.5 h-3.5 text-muted-foreground/30 group-hover:text-primary transition-colors" />
+            <ArrowUpRight class="w-4 h-4 text-muted-foreground/30 group-hover:text-primary transition-colors" />
           </div>
-          <p class="text-xl font-semibold text-foreground tracking-tight">{{ stat.value }}</p>
-          <p class="text-[11px] text-muted-foreground">{{ stat.label }}</p>
+          <p class="text-2xl font-semibold text-foreground tracking-tight">{{ stat.value }}</p>
+          <p class="text-sm text-muted-foreground">{{ stat.label }}</p>
         </div>
       </div>
 
-      <!-- Asset Trends Chart - Clustered Column -->
-      <div class="bg-card border rounded-xl p-5 mt-4">
+      <!-- Asset Trends Chart - Clustered Column (BIGGER) -->
+      <div class="bg-card border rounded-xl p-6">
         <div class="flex items-start justify-between mb-6">
           <div>
-            <h3 class="font-semibold text-foreground">Asset Trends</h3>
-            <p class="text-xs text-muted-foreground">Monthly status breakdown</p>
+            <h3 class="text-lg font-semibold text-foreground">Asset Trends</h3>
+            <p class="text-sm text-muted-foreground">Monthly status breakdown</p>
           </div>
           <!-- Legend -->
-          <div class="flex items-center gap-4 text-xs">
-            <div class="flex items-center gap-1.5">
+          <div class="flex items-center gap-5 text-sm">
+            <div class="flex items-center gap-2">
               <div class="w-3 h-3 rounded-full bg-emerald-500"></div>
               <span class="text-muted-foreground">Active</span>
             </div>
-            <div class="flex items-center gap-1.5">
+            <div class="flex items-center gap-2">
               <div class="w-3 h-3 rounded-full bg-amber-500"></div>
               <span class="text-muted-foreground">Maintenance</span>
             </div>
-            <div class="flex items-center gap-1.5">
+            <div class="flex items-center gap-2">
               <div class="w-3 h-3 rounded-full bg-gray-400"></div>
               <span class="text-muted-foreground">Inactive</span>
             </div>
-            <div class="flex items-center gap-1.5">
+            <div class="flex items-center gap-2">
               <div class="w-3 h-3 rounded-full bg-red-500"></div>
               <span class="text-muted-foreground">Disposed</span>
             </div>
@@ -415,43 +421,47 @@ onMounted(() => {
         </div>
 
         <!-- Clustered Column Chart -->
-        <div v-if="monthlyData.length === 0" class="flex items-center justify-center h-52">
+        <div v-if="monthlyData.length === 0" class="flex items-center justify-center h-72">
           <p class="text-sm text-muted-foreground">Loading...</p>
         </div>
-        <div v-else class="h-52">
-          <div class="flex items-end justify-around h-full gap-4 px-4">
+        <div v-else class="h-72">
+          <div class="flex items-end justify-around h-full gap-6 px-4">
             <div
               v-for="data in monthlyData"
               :key="`${data.month}-${data.year}`"
-              class="flex-1 flex flex-col h-full max-w-32"
+              class="flex-1 flex flex-col h-full"
             >
+              <!-- Total number on top -->
+              <div class="text-center mb-2">
+                <span class="text-sm font-semibold text-foreground">{{ data.total }}</span>
+              </div>
               <!-- Clustered bars for each status -->
-              <div class="flex-1 flex items-end justify-center gap-1">
+              <div class="flex-1 flex items-end justify-center gap-1.5">
                 <!-- Active -->
                 <div
-                  class="w-5 bg-emerald-500 rounded-t transition-all duration-500"
+                  class="w-7 bg-emerald-500 rounded-t transition-all duration-500"
                   :style="{ height: `${maxMonthly > 0 ? (data.active / maxMonthly) * 100 : 0}%`, minHeight: data.active > 0 ? '4px' : '0' }"
                 ></div>
                 <!-- Maintenance -->
                 <div
-                  class="w-5 bg-amber-500 rounded-t transition-all duration-500"
+                  class="w-7 bg-amber-500 rounded-t transition-all duration-500"
                   :style="{ height: `${maxMonthly > 0 ? (data.maintenance / maxMonthly) * 100 : 0}%`, minHeight: data.maintenance > 0 ? '4px' : '0' }"
                 ></div>
                 <!-- Inactive -->
                 <div
-                  class="w-5 bg-gray-400 rounded-t transition-all duration-500"
+                  class="w-7 bg-gray-400 rounded-t transition-all duration-500"
                   :style="{ height: `${maxMonthly > 0 ? (data.inactive / maxMonthly) * 100 : 0}%`, minHeight: data.inactive > 0 ? '4px' : '0' }"
                 ></div>
                 <!-- Disposed -->
                 <div
-                  class="w-5 bg-red-500 rounded-t transition-all duration-500"
+                  class="w-7 bg-red-500 rounded-t transition-all duration-500"
                   :style="{ height: `${maxMonthly > 0 ? (data.disposed / maxMonthly) * 100 : 0}%`, minHeight: data.disposed > 0 ? '4px' : '0' }"
                 ></div>
               </div>
               <!-- Month Labels -->
-              <div class="text-center pt-2 mt-2 border-t border-border/50">
-                <span class="text-xs text-muted-foreground block">{{ data.month }}</span>
-                <span class="text-[10px] text-muted-foreground/50">{{ data.year }}</span>
+              <div class="text-center pt-3 mt-2 border-t border-border/50">
+                <span class="text-sm text-muted-foreground block">{{ data.month }}</span>
+                <span class="text-xs text-muted-foreground/60">{{ data.year }}</span>
               </div>
             </div>
           </div>
@@ -459,7 +469,7 @@ onMounted(() => {
       </div>
 
       <!-- Bottom Row: Asset Status + Recent Activity -->
-      <div class="grid lg:grid-cols-2 gap-4 mt-4">
+      <div class="grid lg:grid-cols-2 gap-6">
         <!-- Asset Status -->
         <div class="bg-card border rounded-xl p-5">
           <div class="flex items-center gap-4 mb-6">
