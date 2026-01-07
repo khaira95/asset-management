@@ -96,22 +96,13 @@ const maxMonthly = computed(() => {
 
 async function fetchMonthlyData() {
   try {
-    // Get all assets with their current status and created_at
-    const [assetsRes, historyRes] = await Promise.all([
-      supabase.from('assets').select('id, status, created_at').order('created_at', { ascending: true }),
-      supabase.from('asset_history').select('asset_id, old_value, new_value, effective_date, created_at').eq('field_name', 'status').order('created_at', { ascending: true })
-    ])
+    // Get all assets with their current/latest status and created_at
+    const { data: assets, error } = await supabase
+      .from('assets')
+      .select('id, status, created_at')
+      .order('created_at', { ascending: true })
 
-    if (assetsRes.error) throw assetsRes.error
-
-    const assets = assetsRes.data || []
-    const history = historyRes.data || []
-
-    // Debug: check history with effective_date
-    const statusHistory = history.filter(h => h.effective_date)
-    if (statusHistory.length > 0) {
-      console.log('History with effective_date:', statusHistory)
-    }
+    if (error) throw error
 
     // Get last 6 months
     const months: MonthlyData[] = []
@@ -130,74 +121,27 @@ async function fetchMonthlyData() {
       })
     }
 
-    // Helper to parse date (handles both DATE and TIMESTAMP formats)
-    const parseDate = (dateStr: string) => {
-      if (!dateStr) return null
-      // If it's just a date (YYYY-MM-DD), add time to avoid timezone issues
-      if (dateStr.length === 10) {
-        return new Date(dateStr + 'T12:00:00')
-      }
-      return new Date(dateStr)
-    }
-
-    // For each month, calculate asset status at end of that month
+    // For each month, count assets that existed by end of that month
+    // but show their CURRENT/LATEST status
     months.forEach((monthData, idx) => {
       const monthEnd = new Date(now.getFullYear(), now.getMonth() - (5 - idx) + 1, 0, 23, 59, 59)
 
-      assets.forEach(asset => {
+      assets?.forEach(asset => {
         const createdAt = new Date(asset.created_at)
 
         // Asset must exist by end of this month
         if (createdAt > monthEnd) return
 
-        // Find the status at the end of this month
-        // Start with 'active' (default when created) and apply history changes
-        let statusAtMonth = 'active'
-
-        // Get all history for this asset up to monthEnd
-        // Use effective_date if available, otherwise fall back to created_at
-        const assetHistory = history.filter(h => {
-          if (h.asset_id !== asset.id) return false
-          const historyDate = h.effective_date ? parseDate(h.effective_date) : new Date(h.created_at)
-          return historyDate && historyDate <= monthEnd
-        })
-
-        // Sort by effective_date/created_at to apply in order
-        assetHistory.sort((a, b) => {
-          const dateA = a.effective_date ? parseDate(a.effective_date) : new Date(a.created_at)
-          const dateB = b.effective_date ? parseDate(b.effective_date) : new Date(b.created_at)
-          return (dateA?.getTime() || 0) - (dateB?.getTime() || 0)
-        })
-
-        // Apply each status change in order
-        assetHistory.forEach(h => {
-          if (h.new_value) {
-            statusAtMonth = h.new_value
-          }
-        })
-
-        // If no history, use current status (for assets created before history tracking)
-        if (assetHistory.length === 0) {
-          statusAtMonth = asset.status
-        }
+        // Use the asset's current/latest status (not historical)
+        const currentStatus = asset.status
 
         monthData.total++
-        if (statusAtMonth === 'active') monthData.active++
-        else if (statusAtMonth === 'maintenance') monthData.maintenance++
-        else if (statusAtMonth === 'inactive') monthData.inactive++
-        else if (statusAtMonth === 'disposed') monthData.disposed++
+        if (currentStatus === 'active') monthData.active++
+        else if (currentStatus === 'maintenance') monthData.maintenance++
+        else if (currentStatus === 'inactive') monthData.inactive++
+        else if (currentStatus === 'disposed') monthData.disposed++
       })
     })
-
-    // Debug: log final monthly data
-    console.log('Monthly data:', months.map(m => ({
-      month: `${m.month} ${m.year}`,
-      active: m.active,
-      maintenance: m.maintenance,
-      inactive: m.inactive,
-      disposed: m.disposed,
-      total: m.total
-    })))
 
     monthlyData.value = months
   } catch (error) {
@@ -407,7 +351,7 @@ onMounted(() => {
         <div class="flex items-start justify-between mb-6">
           <div>
             <h3 class="text-lg font-semibold text-foreground">Asset Trends</h3>
-            <p class="text-sm text-muted-foreground">Monthly status breakdown</p>
+            <p class="text-sm text-muted-foreground">Assets by month (current status)</p>
           </div>
           <!-- Legend -->
           <div class="flex items-center gap-5 text-sm">
