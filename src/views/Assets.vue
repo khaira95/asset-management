@@ -327,6 +327,43 @@ function closeHistoryModal() {
   showHistoryModal.value = false
   historyAsset.value = null
   assetHistory.value = []
+  editingHistoryId.value = null
+}
+
+// Edit history date
+const editingHistoryId = ref<number | null>(null)
+const editingHistoryDate = ref('')
+
+function startEditHistoryDate(history: AssetHistory) {
+  editingHistoryId.value = history.id
+  editingHistoryDate.value = history.effective_date || ''
+}
+
+function cancelEditHistoryDate() {
+  editingHistoryId.value = null
+  editingHistoryDate.value = ''
+}
+
+async function saveHistoryDate(historyId: number) {
+  try {
+    const { error } = await supabase
+      .from('asset_history')
+      .update({ effective_date: editingHistoryDate.value || null })
+      .eq('id', historyId)
+
+    if (error) throw error
+
+    // Update local state
+    const idx = assetHistory.value.findIndex(h => h.id === historyId)
+    if (idx !== -1) {
+      assetHistory.value[idx].effective_date = editingHistoryDate.value || null
+    }
+
+    editingHistoryId.value = null
+    editingHistoryDate.value = ''
+  } catch (error) {
+    console.error('Error updating history date:', error)
+  }
 }
 
 async function trackChanges(assetId: number, oldAsset: AssetWithRelations, newData: any, statusDate?: string) {
@@ -764,18 +801,45 @@ onMounted(fetchData)
               ]">
                 {{ history.change_type === 'create' ? 'Created' : 'Updated' }}
               </span>
-              <div class="text-right">
-                <!-- Show effective_date for status changes if available -->
-                <template v-if="history.effective_date && history.field_name === 'status'">
-                  <p class="text-xs font-medium text-amber-600">{{ new Date(history.effective_date).toLocaleDateString('en-MY', { day: '2-digit', month: 'short', year: 'numeric' }) }}</p>
-                  <p v-if="history.created_at" class="text-[10px] text-muted-foreground">Recorded: {{ formatDateTime(new Date(history.created_at)) }}</p>
+              <div class="text-right flex items-center gap-2">
+                <!-- Edit mode for status changes -->
+                <template v-if="editingHistoryId === history.id">
+                  <input
+                    v-model="editingHistoryDate"
+                    type="date"
+                    class="h-7 px-2 text-xs border rounded-lg bg-background"
+                  />
+                  <button @click="saveHistoryDate(history.id)" class="p-1 text-emerald-600 hover:bg-emerald-50 rounded">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                  </button>
+                  <button @click="cancelEditHistoryDate" class="p-1 text-red-600 hover:bg-red-50 rounded">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                  </button>
                 </template>
-                <template v-else-if="history.created_at">
-                  <p class="text-xs font-medium text-foreground">{{ formatDateTime(new Date(history.created_at)) }}</p>
-                  <p class="text-xs text-muted-foreground">{{ formatTimeAgo(new Date(history.created_at)) }}</p>
-                </template>
+                <!-- Display mode -->
                 <template v-else>
-                  <p class="text-xs text-muted-foreground">-</p>
+                  <div>
+                    <template v-if="history.effective_date && history.field_name === 'status'">
+                      <p class="text-xs font-medium text-amber-600">{{ new Date(history.effective_date).toLocaleDateString('en-MY', { day: '2-digit', month: 'short', year: 'numeric' }) }}</p>
+                      <p v-if="history.created_at" class="text-[10px] text-muted-foreground">Recorded: {{ formatDateTime(new Date(history.created_at)) }}</p>
+                    </template>
+                    <template v-else-if="history.created_at">
+                      <p class="text-xs font-medium text-foreground">{{ formatDateTime(new Date(history.created_at)) }}</p>
+                      <p class="text-xs text-muted-foreground">{{ formatTimeAgo(new Date(history.created_at)) }}</p>
+                    </template>
+                    <template v-else>
+                      <p class="text-xs text-muted-foreground">-</p>
+                    </template>
+                  </div>
+                  <!-- Edit button for status changes -->
+                  <button
+                    v-if="history.field_name === 'status'"
+                    @click="startEditHistoryDate(history)"
+                    class="p-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-all"
+                    title="Edit date"
+                  >
+                    <Pencil class="w-3 h-3" />
+                  </button>
                 </template>
               </div>
             </div>

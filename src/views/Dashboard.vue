@@ -401,7 +401,6 @@ onMounted(() => {
         <div class="flex items-start justify-between mb-6">
           <div>
             <h3 class="text-lg font-semibold text-foreground">Asset Trends</h3>
-            <p class="text-sm text-muted-foreground">Status berdasarkan tarikh perubahan</p>
           </div>
           <!-- Legend -->
           <div class="flex items-center gap-5 text-sm">

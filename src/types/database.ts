@@ -207,6 +207,41 @@ export interface Database {
           created_at?: string
         }
       }
+      staff_history: {
+        Row: {
+          id: number
+          staff_id: number
+          user_id: string
+          field_name: string
+          old_value: string | null
+          new_value: string | null
+          change_type: string
+          effective_date: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: number
+          staff_id: number
+          user_id: string
+          field_name: string
+          old_value?: string | null
+          new_value?: string | null
+          change_type: string
+          effective_date?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: number
+          staff_id?: number
+          user_id?: string
+          field_name?: string
+          old_value?: string | null
+          new_value?: string | null
+          change_type?: string
+          effective_date?: string | null
+          created_at?: string
+        }
+      }
     }
     Views: {
       [_ in never]: never
@@ -227,3 +262,4 @@ export type Staff = Database['public']['Tables']['staff']['Row']
 export type Location = Database['public']['Tables']['locations']['Row']
 export type License = Database['public']['Tables']['licenses']['Row']
 export type AssetHistory = Database['public']['Tables']['asset_history']['Row']
+export type StaffHistory = Database['public']['Tables']['staff_history']['Row']

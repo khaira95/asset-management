@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { supabase } from '@/lib/supabase'
-import type { Staff, Location, Asset, Category, AssetHistory } from '@/types/database'
-import { Users, Plus, Pencil, Trash2, Mail, Phone, MapPin, Package, Eye, Clock, ChevronDown, ChevronUp, Search, ChevronLeft, ChevronRight } from 'lucide-vue-next'
+import type { Staff, Location, Asset, Category, AssetHistory, StaffHistory } from '@/types/database'
+import { Users, Plus, Pencil, Trash2, Mail, Phone, MapPin, Package, Eye, Clock, ChevronDown, ChevronUp, Search, ChevronLeft, ChevronRight, History } from 'lucide-vue-next'
 import Modal from '@/components/Modal.vue'
 
 interface StaffWithLocation extends Staff {
@@ -24,7 +24,7 @@ const searchQuery = ref('')
 
 // Pagination
 const currentPage = ref(1)
-const itemsPerPage = 10
+const itemsPerPage = 9
 
 const filteredStaff = computed(() => {
   if (!searchQuery.value.trim()) return staffList.value
@@ -74,6 +74,16 @@ const showAssetsModal = ref(false)
 const selectedStaff = ref<StaffWithLocation | null>(null)
 const staffAssets = ref<AssetWithDetails[]>([])
 const loadingAssets = ref(false)
+
+// Staff history modal state
+const showHistoryModal = ref(false)
+const historyStaff = ref<StaffWithLocation | null>(null)
+const staffHistory = ref<StaffHistory[]>([])
+const loadingHistory = ref(false)
+
+// Form state for location change date
+const locationChangeDate = ref('')
+const originalLocationId = ref<number | null>(null)
 
 const statusConfig: Record<string, { label: string; class: string }> = {
   active: { label: 'Active', class: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
@@ -171,6 +181,42 @@ function toggleAssetHistory(asset: AssetWithDetails) {
   asset.showHistory = !asset.showHistory
 }
 
+// Staff history functions
+async function openHistory(staff: StaffWithLocation) {
+  historyStaff.value = staff
+  showHistoryModal.value = true
+  loadingHistory.value = true
+
+  try {
+    const { data, error } = await supabase
+      .from('staff_history')
+      .select('*')
+      .eq('staff_id', staff.id)
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+    staffHistory.value = data || []
+  } catch (error) {
+    console.error('Error fetching staff history:', error)
+    staffHistory.value = []
+  } finally {
+    loadingHistory.value = false
+  }
+}
+
+function closeHistoryModal() {
+  showHistoryModal.value = false
+  historyStaff.value = null
+  staffHistory.value = []
+}
+
+// Get location name by ID
+function getLocationName(locationId: number | string | null): string {
+  if (!locationId) return '-'
+  const loc = locations.value.find(l => l.id === Number(locationId))
+  return loc?.name || '-'
+}
+
 function openCreate() {
   editingId.value = null
   form.value = { name: '', staff_id: '', position: '', email: '', phone_number: '', location_id: '' }
@@ -180,6 +226,8 @@ function openCreate() {
 
 function openEdit(staff: StaffWithLocation) {
   editingId.value = staff.id
+  originalLocationId.value = staff.location_id
+  locationChangeDate.value = ''
   form.value = {
     name: staff.name,
     staff_id: staff.staff_id,
@@ -197,6 +245,8 @@ function closeModal() {
   editingId.value = null
   form.value = { name: '', staff_id: '', position: '', email: '', phone_number: '', location_id: '' }
   formError.value = ''
+  locationChangeDate.value = ''
+  originalLocationId.value = null
 }
 
 async function fetchData() {
@@ -257,12 +307,33 @@ async function saveStaff() {
 
   try {
     if (editingId.value) {
+      // Check if location changed
+      const locationChanged = originalLocationId.value !== payload.location_id
+
       const { error } = await supabase
         .from('staff')
         .update(payload)
         .eq('id', editingId.value)
 
       if (error) throw error
+
+      // Track location change in history
+      if (locationChanged) {
+        const { data: { user } } = await supabase.auth.getUser()
+        const oldLocationName = getLocationName(originalLocationId.value)
+        const newLocationName = getLocationName(payload.location_id)
+
+        await supabase.from('staff_history').insert({
+          staff_id: editingId.value,
+          user_id: user?.id || 'system',
+          field_name: 'location',
+          old_value: oldLocationName,
+          new_value: newLocationName,
+          change_type: 'update',
+          effective_date: locationChangeDate.value || null
+        })
+      }
+
       // Refetch to get updated relations
       await fetchData()
     } else {
@@ -385,6 +456,13 @@ onMounted(fetchData)
                     <p class="text-sm text-muted-foreground">{{ staff.staff_id }}</p>
                   </div>
                   <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      @click="openHistory(staff)"
+                      class="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
+                      title="History"
+                    >
+                      <History class="w-3.5 h-3.5" />
+                    </button>
                     <button
                       @click="openEdit(staff)"
                       class="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-all"
@@ -538,6 +616,17 @@ onMounted(fetchData)
           </div>
         </div>
 
+        <!-- Location change date (only show when editing and location changed) -->
+        <div v-if="editingId && form.location_id != originalLocationId" class="p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-2">
+          <label class="block text-sm font-medium text-amber-800">Tarikh Tukar Lokasi</label>
+          <input
+            v-model="locationChangeDate"
+            type="date"
+            class="w-full h-10 px-4 bg-white border border-amber-200 rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-amber-200 focus:border-amber-400 transition-all"
+          />
+          <p class="text-xs text-amber-600">Masukkan tarikh sebenar staff bertukar lokasi</p>
+        </div>
+
         <div class="grid grid-cols-2 gap-4">
           <div class="space-y-2">
             <label class="block text-sm font-medium text-foreground">Email</label>
@@ -681,6 +770,66 @@ onMounted(fetchData)
       <div class="flex justify-end pt-4 mt-4 border-t">
         <button
           @click="closeAssetsModal"
+          class="px-4 py-2.5 border rounded-xl font-medium text-foreground hover:bg-muted transition-all"
+        >
+          Close
+        </button>
+      </div>
+    </Modal>
+
+    <!-- Staff History Modal -->
+    <Modal
+      :show="showHistoryModal"
+      :title="`History: ${historyStaff?.name || ''}`"
+      size="md"
+      @close="closeHistoryModal"
+    >
+      <div v-if="loadingHistory" class="py-8 text-center">
+        <div class="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full mx-auto mb-2"></div>
+        <p class="text-sm text-muted-foreground">Loading history...</p>
+      </div>
+
+      <div v-else-if="staffHistory.length === 0" class="py-12 text-center">
+        <History class="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
+        <p class="text-muted-foreground">Tiada history direkodkan</p>
+        <p class="text-sm text-muted-foreground/70 mt-1">Perubahan lokasi akan dipaparkan di sini</p>
+      </div>
+
+      <div v-else class="space-y-3 max-h-96 overflow-y-auto">
+        <div
+          v-for="history in staffHistory"
+          :key="history.id"
+          class="flex items-start gap-3 p-3 bg-muted/30 rounded-xl"
+        >
+          <div class="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+            <MapPin class="w-4 h-4 text-primary" />
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center justify-between gap-2 mb-1">
+              <span class="px-2 py-0.5 text-xs font-medium rounded bg-blue-100 text-blue-700">
+                Tukar Lokasi
+              </span>
+              <div class="text-right">
+                <p v-if="history.effective_date" class="text-xs font-medium text-amber-600">
+                  {{ new Date(history.effective_date).toLocaleDateString('en-MY', { day: '2-digit', month: 'short', year: 'numeric' }) }}
+                </p>
+                <p v-if="history.created_at" class="text-[10px] text-muted-foreground">
+                  Recorded: {{ formatDateTime(new Date(history.created_at)) }}
+                </p>
+              </div>
+            </div>
+            <p class="text-sm text-foreground">
+              <span class="text-muted-foreground">{{ history.old_value || '-' }}</span>
+              <span class="mx-2">→</span>
+              <span class="font-medium">{{ history.new_value || '-' }}</span>
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex justify-end pt-4 mt-4 border-t">
+        <button
+          @click="closeHistoryModal"
           class="px-4 py-2.5 border rounded-xl font-medium text-foreground hover:bg-muted transition-all"
         >
           Close
