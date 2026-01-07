@@ -8,11 +8,9 @@ import {
   MapPin,
   Key,
   AlertTriangle,
-  TrendingUp,
   ArrowUpRight,
   Clock,
   CheckCircle2,
-  XCircle,
   Wrench,
   FolderTree
 } from 'lucide-vue-next'
@@ -49,18 +47,6 @@ const statCards = computed(() => [
     value: stats.value.totalAssets,
     icon: Package,
     iconBg: 'bg-primary'
-  },
-  {
-    label: 'Active',
-    value: stats.value.activeAssets,
-    icon: TrendingUp,
-    iconBg: 'bg-emerald-500'
-  },
-  {
-    label: 'Maintenance',
-    value: stats.value.maintenanceAssets,
-    icon: Wrench,
-    iconBg: 'bg-amber-500'
   },
   {
     label: 'Staff',
@@ -109,13 +95,16 @@ const maxMonthly = computed(() => Math.max(...monthlyData.value.map(d => d.total
 
 async function fetchMonthlyData() {
   try {
-    // Get all assets with their status and created_at
-    const { data, error } = await supabase
-      .from('assets')
-      .select('status, created_at')
-      .order('created_at', { ascending: true })
+    // Get all assets with their current status and created_at
+    const [assetsRes, historyRes] = await Promise.all([
+      supabase.from('assets').select('id, status, created_at').order('created_at', { ascending: true }),
+      supabase.from('asset_history').select('asset_id, old_value, new_value, created_at').eq('field_name', 'status').order('created_at', { ascending: true })
+    ])
 
-    if (error) throw error
+    if (assetsRes.error) throw assetsRes.error
+
+    const assets = assetsRes.data || []
+    const history = historyRes.data || []
 
     // Get last 6 months
     const months: MonthlyData[] = []
@@ -134,24 +123,44 @@ async function fetchMonthlyData() {
       })
     }
 
-    // Count assets by status for each month
-    if (data) {
-      months.forEach((monthData, idx) => {
-        const monthEnd = new Date(now.getFullYear(), now.getMonth() - (5 - idx) + 1, 0, 23, 59, 59)
+    // For each month, calculate asset status at end of that month
+    months.forEach((monthData, idx) => {
+      const monthEnd = new Date(now.getFullYear(), now.getMonth() - (5 - idx) + 1, 0, 23, 59, 59)
 
-        data.forEach(asset => {
-          const createdAt = new Date(asset.created_at)
-          // Asset exists by end of this month
-          if (createdAt <= monthEnd) {
-            monthData.total++
-            if (asset.status === 'active') monthData.active++
-            else if (asset.status === 'maintenance') monthData.maintenance++
-            else if (asset.status === 'inactive') monthData.inactive++
-            else if (asset.status === 'disposed') monthData.disposed++
+      assets.forEach(asset => {
+        const createdAt = new Date(asset.created_at)
+
+        // Asset must exist by end of this month
+        if (createdAt > monthEnd) return
+
+        // Find the status at the end of this month
+        // Start with 'active' (default when created) and apply history changes
+        let statusAtMonth = 'active'
+
+        // Get all history for this asset up to monthEnd
+        const assetHistory = history.filter(h =>
+          h.asset_id === asset.id && new Date(h.created_at) <= monthEnd
+        )
+
+        // Apply each status change in order
+        assetHistory.forEach(h => {
+          if (h.new_value) {
+            statusAtMonth = h.new_value
           }
         })
+
+        // If no history, use current status (for assets created before history tracking)
+        if (assetHistory.length === 0) {
+          statusAtMonth = asset.status
+        }
+
+        monthData.total++
+        if (statusAtMonth === 'active') monthData.active++
+        else if (statusAtMonth === 'maintenance') monthData.maintenance++
+        else if (statusAtMonth === 'inactive') monthData.inactive++
+        else if (statusAtMonth === 'disposed') monthData.disposed++
       })
-    }
+    })
 
     monthlyData.value = months
   } catch (error) {
@@ -333,13 +342,13 @@ onMounted(() => {
     </div>
 
     <!-- Loading state -->
-    <div v-if="loading" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-      <div v-for="i in 6" :key="i" class="h-28 bg-card border rounded-2xl animate-pulse" />
+    <div v-if="loading" class="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div v-for="i in 4" :key="i" class="h-28 bg-card border rounded-2xl animate-pulse" />
     </div>
 
     <div v-else>
-      <!-- Stats grid - 6 columns on large screens -->
-      <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 stagger-children">
+      <!-- Stats grid - 4 columns -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 stagger-children">
         <div
           v-for="stat in statCards"
           :key="stat.label"
@@ -356,147 +365,152 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- Charts Row -->
-      <div class="grid lg:grid-cols-3 gap-6 mt-6">
-        <!-- Asset Trends Chart -->
-        <div class="lg:col-span-2 bg-card border rounded-2xl p-6">
-          <div class="flex items-start justify-between mb-4">
-            <div>
-              <h3 class="font-semibold text-foreground mb-1">Asset Trends</h3>
-              <p class="text-sm text-muted-foreground">Monthly breakdown by status</p>
-            </div>
-            <!-- Legend -->
-            <div class="flex flex-wrap gap-3 text-xs">
-              <div class="flex items-center gap-1.5">
-                <div class="w-3 h-3 rounded-sm bg-emerald-500"></div>
-                <span class="text-muted-foreground">Active</span>
-              </div>
-              <div class="flex items-center gap-1.5">
-                <div class="w-3 h-3 rounded-sm bg-amber-500"></div>
-                <span class="text-muted-foreground">Maintenance</span>
-              </div>
-              <div class="flex items-center gap-1.5">
-                <div class="w-3 h-3 rounded-sm bg-gray-400"></div>
-                <span class="text-muted-foreground">Inactive</span>
-              </div>
-              <div class="flex items-center gap-1.5">
-                <div class="w-3 h-3 rounded-sm bg-red-500"></div>
-                <span class="text-muted-foreground">Disposed</span>
+      <!-- Asset Status Overview - Full Width -->
+      <div class="bg-card border rounded-2xl p-6 mt-6">
+        <div class="flex flex-col lg:flex-row lg:items-start gap-8">
+          <!-- Left: Donut Chart -->
+          <div class="flex-shrink-0">
+            <h3 class="font-semibold text-foreground mb-1">Asset Status</h3>
+            <p class="text-sm text-muted-foreground mb-6">Current distribution</p>
+
+            <div class="flex justify-center">
+              <div class="relative w-44 h-44">
+                <!-- Background circle -->
+                <svg class="w-full h-full -rotate-90" viewBox="0 0 100 100">
+                  <circle
+                    cx="50" cy="50" r="40"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="10"
+                    class="text-muted"
+                  />
+                  <!-- Active segment -->
+                  <circle
+                    cx="50" cy="50" r="40"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="10"
+                    stroke-linecap="round"
+                    class="text-emerald-500"
+                    :stroke-dasharray="`${assetDistribution[0].percent * 2.51} 251`"
+                  />
+                </svg>
+                <!-- Center text -->
+                <div class="absolute inset-0 flex flex-col items-center justify-center">
+                  <span class="text-3xl font-bold text-foreground">{{ stats.totalAssets }}</span>
+                  <span class="text-sm text-muted-foreground">Total Assets</span>
+                </div>
               </div>
             </div>
           </div>
 
-          <!-- Stacked Bar Chart -->
-          <div v-if="monthlyData.length === 0" class="flex items-center justify-center h-48">
-            <p class="text-sm text-muted-foreground">Loading...</p>
-          </div>
-          <div v-else class="flex items-end justify-between gap-2 h-48">
-            <div
-              v-for="data in monthlyData"
-              :key="`${data.month}-${data.year}`"
-              class="flex-1 flex flex-col items-center gap-2"
-            >
-              <!-- Stacked bar -->
-              <div class="w-full relative group cursor-default h-full flex flex-col justify-end">
-                <!-- Tooltip -->
-                <div class="absolute -top-2 left-1/2 -translate-x-1/2 -translate-y-full px-3 py-2 bg-foreground text-background text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-20 shadow-lg">
-                  <p class="font-semibold mb-1">{{ data.month }} {{ data.year }}</p>
-                  <p class="text-emerald-300">Active: {{ data.active }}</p>
-                  <p class="text-amber-300">Maintenance: {{ data.maintenance }}</p>
-                  <p class="text-gray-300">Inactive: {{ data.inactive }}</p>
-                  <p class="text-red-300">Disposed: {{ data.disposed }}</p>
-                  <p class="border-t border-white/20 mt-1 pt-1 font-medium">Total: {{ data.total }}</p>
+          <!-- Right: Status Breakdown Cards -->
+          <div class="flex-1">
+            <h4 class="font-medium text-foreground mb-4">Status Breakdown</h4>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div
+                v-for="item in assetDistribution"
+                :key="item.label"
+                class="p-4 rounded-xl border bg-muted/30"
+              >
+                <div class="flex items-center gap-2 mb-2">
+                  <div :class="['w-3 h-3 rounded-full', item.color]" />
+                  <span class="text-sm text-muted-foreground">{{ item.label }}</span>
                 </div>
-
-                <!-- Stacked segments -->
-                <div
-                  class="w-full flex flex-col-reverse rounded-t-lg overflow-hidden transition-all duration-500"
-                  :style="{ height: `${(data.total / maxMonthly) * 100}%`, minHeight: data.total > 0 ? '4px' : '0' }"
-                >
-                  <!-- Active (bottom) -->
-                  <div
-                    v-if="data.active > 0"
-                    class="w-full bg-emerald-500 group-hover:bg-emerald-400 transition-colors"
-                    :style="{ height: `${(data.active / data.total) * 100}%` }"
-                  ></div>
-                  <!-- Maintenance -->
-                  <div
-                    v-if="data.maintenance > 0"
-                    class="w-full bg-amber-500 group-hover:bg-amber-400 transition-colors"
-                    :style="{ height: `${(data.maintenance / data.total) * 100}%` }"
-                  ></div>
-                  <!-- Inactive -->
-                  <div
-                    v-if="data.inactive > 0"
-                    class="w-full bg-gray-400 group-hover:bg-gray-300 transition-colors"
-                    :style="{ height: `${(data.inactive / data.total) * 100}%` }"
-                  ></div>
-                  <!-- Disposed (top) -->
-                  <div
-                    v-if="data.disposed > 0"
-                    class="w-full bg-red-500 group-hover:bg-red-400 transition-colors"
-                    :style="{ height: `${(data.disposed / data.total) * 100}%` }"
-                  ></div>
-                </div>
-              </div>
-              <!-- Labels -->
-              <div class="text-center">
-                <span class="text-xs font-medium text-foreground block">{{ data.total }}</span>
-                <span class="text-xs text-muted-foreground block">{{ data.month }}</span>
-                <span class="text-[10px] text-muted-foreground/60">{{ data.year }}</span>
+                <p class="text-2xl font-bold text-foreground">{{ item.value }}</p>
+                <p class="text-xs text-muted-foreground">{{ item.percent }}% of total</p>
               </div>
             </div>
           </div>
         </div>
+      </div>
 
-        <!-- Asset Distribution -->
-        <div class="bg-card border rounded-2xl p-6">
-          <h3 class="font-semibold text-foreground mb-1">Asset Status</h3>
-          <p class="text-sm text-muted-foreground mb-6">Distribution by status</p>
-
-          <!-- Donut Chart Placeholder -->
-          <div class="flex justify-center mb-6">
-            <div class="relative w-36 h-36">
-              <!-- Background circle -->
-              <svg class="w-full h-full -rotate-90" viewBox="0 0 100 100">
-                <circle
-                  cx="50" cy="50" r="40"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="12"
-                  class="text-muted"
-                />
-                <!-- Active segment -->
-                <circle
-                  cx="50" cy="50" r="40"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="12"
-                  stroke-linecap="round"
-                  class="text-emerald-500"
-                  :stroke-dasharray="`${assetDistribution[0].percent * 2.51} 251`"
-                />
-              </svg>
-              <!-- Center text -->
-              <div class="absolute inset-0 flex flex-col items-center justify-center">
-                <span class="text-2xl font-semibold text-foreground">{{ stats.totalAssets }}</span>
-                <span class="text-xs text-muted-foreground">Total</span>
-              </div>
+      <!-- Asset Trends Chart -->
+      <div class="bg-card border rounded-2xl p-6 mt-6">
+        <div class="flex items-start justify-between mb-4">
+          <div>
+            <h3 class="font-semibold text-foreground mb-1">Asset Trends</h3>
+            <p class="text-sm text-muted-foreground">Monthly breakdown by status (based on status change history)</p>
+          </div>
+          <!-- Legend -->
+          <div class="flex flex-wrap gap-3 text-xs">
+            <div class="flex items-center gap-1.5">
+              <div class="w-3 h-3 rounded-sm bg-emerald-500"></div>
+              <span class="text-muted-foreground">Active</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <div class="w-3 h-3 rounded-sm bg-amber-500"></div>
+              <span class="text-muted-foreground">Maintenance</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <div class="w-3 h-3 rounded-sm bg-gray-400"></div>
+              <span class="text-muted-foreground">Inactive</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <div class="w-3 h-3 rounded-sm bg-red-500"></div>
+              <span class="text-muted-foreground">Disposed</span>
             </div>
           </div>
+        </div>
 
-          <!-- Legend -->
-          <div class="space-y-2">
-            <div
-              v-for="item in assetDistribution"
-              :key="item.label"
-              class="flex items-center justify-between text-sm"
-            >
-              <div class="flex items-center gap-2">
-                <div :class="['w-3 h-3 rounded-full', item.color]" />
-                <span class="text-muted-foreground">{{ item.label }}</span>
+        <!-- Stacked Bar Chart -->
+        <div v-if="monthlyData.length === 0" class="flex items-center justify-center h-56">
+          <p class="text-sm text-muted-foreground">Loading...</p>
+        </div>
+        <div v-else class="flex items-end justify-between gap-3 h-56">
+          <div
+            v-for="data in monthlyData"
+            :key="`${data.month}-${data.year}`"
+            class="flex-1 flex flex-col items-center gap-2"
+          >
+            <!-- Stacked bar -->
+            <div class="w-full relative group cursor-default h-full flex flex-col justify-end">
+              <!-- Tooltip -->
+              <div class="absolute -top-2 left-1/2 -translate-x-1/2 -translate-y-full px-3 py-2 bg-foreground text-background text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-20 shadow-lg">
+                <p class="font-semibold mb-1">{{ data.month }} {{ data.year }}</p>
+                <p class="text-emerald-300">Active: {{ data.active }}</p>
+                <p class="text-amber-300">Maintenance: {{ data.maintenance }}</p>
+                <p class="text-gray-300">Inactive: {{ data.inactive }}</p>
+                <p class="text-red-300">Disposed: {{ data.disposed }}</p>
+                <p class="border-t border-white/20 mt-1 pt-1 font-medium">Total: {{ data.total }}</p>
               </div>
-              <span class="font-medium text-foreground">{{ item.value }}</span>
+
+              <!-- Stacked segments -->
+              <div
+                class="w-full flex flex-col-reverse rounded-t-lg overflow-hidden transition-all duration-500"
+                :style="{ height: `${(data.total / maxMonthly) * 100}%`, minHeight: data.total > 0 ? '4px' : '0' }"
+              >
+                <!-- Active (bottom) -->
+                <div
+                  v-if="data.active > 0"
+                  class="w-full bg-emerald-500 group-hover:bg-emerald-400 transition-colors"
+                  :style="{ height: `${(data.active / data.total) * 100}%` }"
+                ></div>
+                <!-- Maintenance -->
+                <div
+                  v-if="data.maintenance > 0"
+                  class="w-full bg-amber-500 group-hover:bg-amber-400 transition-colors"
+                  :style="{ height: `${(data.maintenance / data.total) * 100}%` }"
+                ></div>
+                <!-- Inactive -->
+                <div
+                  v-if="data.inactive > 0"
+                  class="w-full bg-gray-400 group-hover:bg-gray-300 transition-colors"
+                  :style="{ height: `${(data.inactive / data.total) * 100}%` }"
+                ></div>
+                <!-- Disposed (top) -->
+                <div
+                  v-if="data.disposed > 0"
+                  class="w-full bg-red-500 group-hover:bg-red-400 transition-colors"
+                  :style="{ height: `${(data.disposed / data.total) * 100}%` }"
+                ></div>
+              </div>
+            </div>
+            <!-- Labels -->
+            <div class="text-center">
+              <span class="text-sm font-semibold text-foreground block">{{ data.total }}</span>
+              <span class="text-xs text-muted-foreground block">{{ data.month }}</span>
+              <span class="text-[10px] text-muted-foreground/60">{{ data.year }}</span>
             </div>
           </div>
         </div>
