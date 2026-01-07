@@ -10,7 +10,13 @@ import {
   Key,
   ArrowUpRight,
   Clock,
-  FolderTree
+  FolderTree,
+  TrendingUp,
+  Activity,
+  CheckCircle2,
+  AlertTriangle,
+  XCircle,
+  Trash2
 } from 'lucide-vue-next'
 
 const router = useRouter()
@@ -46,28 +52,32 @@ const statCards = computed(() => [
     label: 'Total Assets',
     value: stats.value.totalAssets,
     icon: Package,
-    iconBg: 'bg-primary',
+    gradient: 'from-blue-500 to-blue-600',
+    bgLight: 'bg-blue-50',
     route: '/assets'
   },
   {
-    label: 'Staff',
+    label: 'Staff Members',
     value: stats.value.totalStaff,
     icon: Users,
-    iconBg: 'bg-violet-500',
+    gradient: 'from-violet-500 to-violet-600',
+    bgLight: 'bg-violet-50',
     route: '/staff'
   },
   {
     label: 'Locations',
     value: stats.value.totalLocations,
     icon: MapPin,
-    iconBg: 'bg-sky-500',
+    gradient: 'from-cyan-500 to-cyan-600',
+    bgLight: 'bg-cyan-50',
     route: '/locations'
   },
   {
     label: 'Licenses',
     value: stats.value.totalLicenses,
     icon: Key,
-    iconBg: 'bg-rose-500',
+    gradient: 'from-rose-500 to-rose-600',
+    bgLight: 'bg-rose-50',
     route: '/licenses'
   },
 ])
@@ -75,17 +85,6 @@ const statCards = computed(() => [
 function navigateTo(route: string) {
   router.push(route)
 }
-
-// Asset distribution for pie chart visualization
-const assetDistribution = computed(() => {
-  const total = stats.value.totalAssets || 1
-  return [
-    { label: 'Active', value: stats.value.activeAssets, percent: Math.round((stats.value.activeAssets / total) * 100), color: 'bg-emerald-500' },
-    { label: 'Maintenance', value: stats.value.maintenanceAssets, percent: Math.round((stats.value.maintenanceAssets / total) * 100), color: 'bg-amber-500' },
-    { label: 'Inactive', value: stats.value.inactiveAssets, percent: Math.round((stats.value.inactiveAssets / total) * 100), color: 'bg-gray-400' },
-    { label: 'Disposed', value: stats.value.disposedAssets, percent: Math.round((stats.value.disposedAssets / total) * 100), color: 'bg-red-500' },
-  ]
-})
 
 // License stats
 interface LicenseStats {
@@ -116,7 +115,6 @@ interface MonthlyData {
 }
 
 const monthlyData = ref<MonthlyData[]>([])
-// Use total assets as max for bar height scaling
 const maxMonthly = computed(() => {
   if (monthlyData.value.length === 0) return 1
   return Math.max(...monthlyData.value.map(d => d.total), 1)
@@ -124,7 +122,6 @@ const maxMonthly = computed(() => {
 
 async function fetchMonthlyData() {
   try {
-    // Get all assets and status change history with effective_date
     const [assetsRes, historyRes] = await Promise.all([
       supabase.from('assets').select('id, status, created_at').order('created_at', { ascending: true }),
       supabase.from('asset_history')
@@ -140,9 +137,6 @@ async function fetchMonthlyData() {
     const assets = assetsRes.data || []
     const history = historyRes.data || []
 
-    console.log('Assets count:', assets.length, 'History count:', history.length)
-
-    // Get last 6 months
     const months: MonthlyData[] = []
     const now = new Date()
 
@@ -159,56 +153,45 @@ async function fetchMonthlyData() {
       })
     }
 
-    // Helper to parse date string
     const parseDate = (dateStr: string) => {
       if (!dateStr) return null
-      // Handle YYYY-MM-DD format
       if (dateStr.length === 10) {
         return new Date(dateStr + 'T12:00:00')
       }
       return new Date(dateStr)
     }
 
-    // For each month, calculate asset status based on effective_date
     months.forEach((monthData, idx) => {
       const monthEnd = new Date(now.getFullYear(), now.getMonth() - (5 - idx) + 1, 0, 23, 59, 59)
 
       assets.forEach(asset => {
-        // Get all status changes for this asset up to monthEnd
         const assetHistory = history.filter(h => {
           if (h.asset_id !== asset.id) return false
           const changeDate = h.effective_date ? parseDate(h.effective_date) : parseDate(h.created_at)
           return changeDate && changeDate <= monthEnd
         })
 
-        // Check if asset existed by this month
-        // Asset exists if: created_at <= monthEnd OR has history with effective_date <= monthEnd
         const createdAt = new Date(asset.created_at)
         const hasHistoryInMonth = assetHistory.length > 0
 
         if (createdAt > monthEnd && !hasHistoryInMonth) {
-          // Asset didn't exist yet and no history for this period
           return
         }
 
-        // Find status at end of this month based on effective_date
-        let statusAtMonth = 'active' // Default when created
+        let statusAtMonth = 'active'
 
-        // Sort by effective_date to get the latest status at monthEnd
         assetHistory.sort((a, b) => {
           const dateA = a.effective_date ? parseDate(a.effective_date) : parseDate(a.created_at)
           const dateB = b.effective_date ? parseDate(b.effective_date) : parseDate(b.created_at)
           return (dateA?.getTime() || 0) - (dateB?.getTime() || 0)
         })
 
-        // Apply status changes in order - last one is the status at monthEnd
         if (assetHistory.length > 0) {
           const lastChange = assetHistory[assetHistory.length - 1]
           if (lastChange.new_value) {
             statusAtMonth = lastChange.new_value
           }
         } else {
-          // No history for this month, use current status
           statusAtMonth = asset.status
         }
 
@@ -220,14 +203,13 @@ async function fetchMonthlyData() {
       })
     })
 
-    console.log('Monthly data result:', months)
     monthlyData.value = months
   } catch (error) {
     console.error('Error fetching monthly data:', error)
   }
 }
 
-// Recent activities from database
+// Recent activities
 interface Activity {
   action: string
   item: string
@@ -239,7 +221,6 @@ interface Activity {
 
 const recentActivities = ref<Activity[]>([])
 
-// Group activities by date
 const activitiesByDate = computed(() => {
   const groups: { date: string; label: string; activities: Activity[] }[] = []
   const today = new Date()
@@ -281,9 +262,9 @@ function formatTimeAgo(date: Date): string {
   const diffDays = Math.floor(diffMs / 86400000)
 
   if (diffMins < 1) return 'Just now'
-  if (diffMins < 60) return `${diffMins} min ago`
-  if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`
-  if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`
+  if (diffMins < 60) return `${diffMins}m ago`
+  if (diffHours < 24) return `${diffHours}h ago`
+  if (diffDays < 7) return `${diffDays}d ago`
   return date.toLocaleDateString()
 }
 
@@ -299,7 +280,6 @@ async function fetchRecentActivities() {
 
     const activities: Activity[] = []
 
-    // Assets
     if (assetsRes.data) {
       assetsRes.data.forEach(a => {
         activities.push({
@@ -307,13 +287,12 @@ async function fetchRecentActivities() {
           item: a.asset_name,
           time: formatTimeAgo(new Date(a.created_at)),
           icon: Package,
-          iconBg: 'bg-emerald-500',
+          iconBg: 'bg-gradient-to-br from-emerald-400 to-emerald-500',
           timestamp: new Date(a.created_at)
         })
       })
     }
 
-    // Staff
     if (staffRes.data) {
       staffRes.data.forEach(s => {
         activities.push({
@@ -321,13 +300,12 @@ async function fetchRecentActivities() {
           item: s.name,
           time: formatTimeAgo(new Date(s.created_at)),
           icon: Users,
-          iconBg: 'bg-violet-500',
+          iconBg: 'bg-gradient-to-br from-violet-400 to-violet-500',
           timestamp: new Date(s.created_at)
         })
       })
     }
 
-    // Locations
     if (locationsRes.data) {
       locationsRes.data.forEach(l => {
         activities.push({
@@ -335,13 +313,12 @@ async function fetchRecentActivities() {
           item: l.name,
           time: formatTimeAgo(new Date(l.created_at)),
           icon: MapPin,
-          iconBg: 'bg-sky-500',
+          iconBg: 'bg-gradient-to-br from-cyan-400 to-cyan-500',
           timestamp: new Date(l.created_at)
         })
       })
     }
 
-    // Categories
     if (categoriesRes.data) {
       categoriesRes.data.forEach(c => {
         activities.push({
@@ -349,13 +326,12 @@ async function fetchRecentActivities() {
           item: c.name,
           time: formatTimeAgo(new Date(c.created_at)),
           icon: FolderTree,
-          iconBg: 'bg-amber-500',
+          iconBg: 'bg-gradient-to-br from-amber-400 to-amber-500',
           timestamp: new Date(c.created_at)
         })
       })
     }
 
-    // Licenses
     if (licensesRes.data) {
       licensesRes.data.forEach(l => {
         activities.push({
@@ -363,13 +339,12 @@ async function fetchRecentActivities() {
           item: l.name,
           time: formatTimeAgo(new Date(l.created_at)),
           icon: Key,
-          iconBg: 'bg-rose-500',
+          iconBg: 'bg-gradient-to-br from-rose-400 to-rose-500',
           timestamp: new Date(l.created_at)
         })
       })
     }
 
-    // Sort by timestamp (newest first) and take top 20
     activities.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
     recentActivities.value = activities.slice(0, 20)
   } catch (error) {
@@ -408,7 +383,6 @@ async function fetchStats() {
       }).length
     }
 
-    // Calculate license stats
     let active = 0
     let expiringSoon = 0
     let expired = 0
@@ -420,7 +394,7 @@ async function fetchStats() {
       seatsTotal += l.seats_total || 0
 
       if (!l.expiration_date) {
-        active++ // No expiration = active
+        active++
       } else {
         const expDate = new Date(l.expiration_date)
         if (expDate < today) {
@@ -455,307 +429,343 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="p-6 lg:p-8 min-h-screen">
-    <!-- Header -->
-    <div class="mb-6">
-      <div class="flex items-center gap-3">
-        <div class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-          <LayoutDashboard class="w-5 h-5 text-primary" />
-        </div>
-        <div>
-          <h1 class="text-2xl font-semibold text-foreground tracking-tight">Dashboard</h1>
-          <p class="text-sm text-muted-foreground">Asset inventory overview</p>
-        </div>
-      </div>
-    </div>
-
-    <!-- Loading state -->
-    <div v-if="loading" class="grid grid-cols-2 md:grid-cols-4 gap-4">
-      <div v-for="i in 4" :key="i" class="h-28 bg-card border rounded-2xl animate-pulse" />
-    </div>
-
-    <div v-else class="space-y-6">
-      <!-- Stats grid - 4 columns -->
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 stagger-children">
-        <div
-          v-for="stat in statCards"
-          :key="stat.label"
-          class="group bg-card border rounded-xl p-4 hover:shadow-lg hover:shadow-black/5 hover:-translate-y-0.5 transition-all duration-300 cursor-pointer"
-          @click="navigateTo(stat.route)"
-        >
-          <div class="flex items-center justify-between mb-3">
-            <div :class="['w-10 h-10 rounded-xl flex items-center justify-center', stat.iconBg]">
-              <component :is="stat.icon" class="w-5 h-5 text-white" />
-            </div>
-            <ArrowUpRight class="w-4 h-4 text-muted-foreground/30 group-hover:text-primary transition-colors" />
+  <div class="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50/50">
+    <div class="p-6 lg:p-8 max-w-[1600px] mx-auto">
+      <!-- Header -->
+      <div class="mb-8">
+        <div class="flex items-center gap-4">
+          <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg shadow-primary/25">
+            <LayoutDashboard class="w-6 h-6 text-white" />
           </div>
-          <p class="text-2xl font-semibold text-foreground tracking-tight">{{ stat.value }}</p>
-          <p class="text-sm text-muted-foreground">{{ stat.label }}</p>
+          <div>
+            <h1 class="text-2xl font-bold text-foreground tracking-tight">Dashboard</h1>
+            <p class="text-sm text-muted-foreground">Welcome back! Here's your asset overview</p>
+          </div>
         </div>
       </div>
 
-      <!-- Asset Trends + Recent Activity Row -->
-      <div class="grid lg:grid-cols-5 gap-6">
-        <!-- Asset Trends Chart -->
-        <div class="lg:col-span-3 bg-card border rounded-xl p-8 hover:shadow-lg hover:shadow-black/5 hover:-translate-y-0.5 transition-all duration-300">
-          <div class="flex items-start justify-between mb-4">
-            <div>
-              <h3 class="font-semibold text-foreground">Asset Trends</h3>
-              <p class="text-xs text-muted-foreground">Last 6 months</p>
-            </div>
-          </div>
-          <!-- Legend -->
-          <div class="flex flex-wrap items-center gap-3 text-xs mb-4">
-            <div class="flex items-center gap-1.5">
-              <div class="w-2.5 h-2.5 rounded-full bg-emerald-500"></div>
-              <span class="text-muted-foreground">Active</span>
-            </div>
-            <div class="flex items-center gap-1.5">
-              <div class="w-2.5 h-2.5 rounded-full bg-amber-500"></div>
-              <span class="text-muted-foreground">Maintenance</span>
-            </div>
-            <div class="flex items-center gap-1.5">
-              <div class="w-2.5 h-2.5 rounded-full bg-gray-400"></div>
-              <span class="text-muted-foreground">Inactive</span>
-            </div>
-            <div class="flex items-center gap-1.5">
-              <div class="w-2.5 h-2.5 rounded-full bg-red-500"></div>
-              <span class="text-muted-foreground">Disposed</span>
-            </div>
-          </div>
+      <!-- Loading state -->
+      <div v-if="loading" class="grid grid-cols-2 lg:grid-cols-4 gap-5">
+        <div v-for="i in 4" :key="i" class="h-32 bg-card rounded-2xl animate-pulse" />
+      </div>
 
-          <!-- Clustered Column Chart -->
-          <div v-if="monthlyData.length === 0" class="flex items-center justify-center h-48">
-            <p class="text-sm text-muted-foreground">Loading...</p>
-          </div>
-          <div v-else class="h-48">
-            <div class="flex items-end justify-around h-full gap-3 px-2">
-              <div
-                v-for="data in monthlyData"
-                :key="`${data.month}-${data.year}`"
-                class="flex-1 flex flex-col h-full"
-              >
-                <!-- Total badge on top -->
-                <div class="text-center mb-1">
-                  <span v-if="data.total > 0" class="inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-semibold bg-primary/10 text-primary rounded-full">
-                    {{ data.total }}
-                  </span>
+      <div v-else class="space-y-6">
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-5">
+          <div
+            v-for="stat in statCards"
+            :key="stat.label"
+            class="group relative bg-white rounded-2xl p-5 shadow-sm border border-slate-100 hover:shadow-xl hover:shadow-slate-200/50 hover:-translate-y-1 transition-all duration-300 cursor-pointer overflow-hidden"
+            @click="navigateTo(stat.route)"
+          >
+            <!-- Decorative gradient blob -->
+            <div :class="['absolute -top-10 -right-10 w-32 h-32 rounded-full opacity-10 blur-2xl transition-opacity group-hover:opacity-20', `bg-gradient-to-br ${stat.gradient}`]"></div>
+
+            <div class="relative">
+              <div class="flex items-start justify-between mb-4">
+                <div :class="['w-11 h-11 rounded-xl bg-gradient-to-br flex items-center justify-center shadow-lg', stat.gradient]">
+                  <component :is="stat.icon" class="w-5 h-5 text-white" />
                 </div>
-                <!-- Clustered bars with numbers -->
-                <div class="flex-1 flex items-end justify-center gap-1">
-                  <!-- Active -->
-                  <div class="flex flex-col items-center justify-end h-full">
-                    <span v-if="data.active > 0" class="text-[10px] font-semibold text-emerald-600 mb-0.5">{{ data.active }}</span>
-                    <div
-                      class="w-5 bg-emerald-500 rounded-t transition-all duration-500"
-                      :style="{ height: `${maxMonthly > 0 ? (data.active / maxMonthly) * 100 : 0}%`, minHeight: data.active > 0 ? '4px' : '0' }"
-                    ></div>
-                  </div>
-                  <!-- Maintenance -->
-                  <div class="flex flex-col items-center justify-end h-full">
-                    <span v-if="data.maintenance > 0" class="text-[10px] font-semibold text-amber-600 mb-0.5">{{ data.maintenance }}</span>
-                    <div
-                      class="w-5 bg-amber-500 rounded-t transition-all duration-500"
-                      :style="{ height: `${maxMonthly > 0 ? (data.maintenance / maxMonthly) * 100 : 0}%`, minHeight: data.maintenance > 0 ? '4px' : '0' }"
-                    ></div>
-                  </div>
-                  <!-- Inactive -->
-                  <div class="flex flex-col items-center justify-end h-full">
-                    <span v-if="data.inactive > 0" class="text-[10px] font-semibold text-gray-500 mb-0.5">{{ data.inactive }}</span>
-                    <div
-                      class="w-5 bg-gray-400 rounded-t transition-all duration-500"
-                      :style="{ height: `${maxMonthly > 0 ? (data.inactive / maxMonthly) * 100 : 0}%`, minHeight: data.inactive > 0 ? '4px' : '0' }"
-                    ></div>
-                  </div>
-                  <!-- Disposed -->
-                  <div class="flex flex-col items-center justify-end h-full">
-                    <span v-if="data.disposed > 0" class="text-[10px] font-semibold text-red-600 mb-0.5">{{ data.disposed }}</span>
-                    <div
-                      class="w-5 bg-red-500 rounded-t transition-all duration-500"
-                      :style="{ height: `${maxMonthly > 0 ? (data.disposed / maxMonthly) * 100 : 0}%`, minHeight: data.disposed > 0 ? '4px' : '0' }"
-                    ></div>
-                  </div>
-                </div>
-                <!-- Month Labels -->
-                <div class="text-center pt-2 mt-1 border-t border-border/50">
-                  <span class="text-xs text-muted-foreground">{{ data.month }}</span>
-                </div>
+                <ArrowUpRight class="w-5 h-5 text-slate-300 group-hover:text-primary group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" />
               </div>
+              <p class="text-3xl font-bold text-foreground tracking-tight">{{ stat.value }}</p>
+              <p class="text-sm text-muted-foreground mt-1">{{ stat.label }}</p>
             </div>
           </div>
         </div>
 
-        <!-- Recent Activity -->
-        <div class="lg:col-span-2 bg-card border rounded-xl p-8 hover:shadow-lg hover:shadow-black/5 hover:-translate-y-0.5 transition-all duration-300">
-          <div class="mb-3">
-            <h3 class="font-semibold text-foreground">Recent Activity</h3>
-            <p class="text-xs text-muted-foreground">Latest updates</p>
-          </div>
-
-          <div v-if="recentActivities.length === 0" class="text-center py-6">
-            <Clock class="w-6 h-6 text-muted-foreground/30 mx-auto mb-2" />
-            <p class="text-sm text-muted-foreground">No recent activity</p>
-          </div>
-          <div v-else class="max-h-52 overflow-y-auto space-y-3 pr-2">
-            <div v-for="group in activitiesByDate" :key="group.date">
-              <div class="sticky top-0 bg-card py-1 mb-2">
-                <span class="text-xs font-semibold text-primary">{{ group.label }}</span>
+        <!-- Main Content Grid -->
+        <div class="grid lg:grid-cols-3 gap-6">
+          <!-- Asset Trends Chart -->
+          <div class="lg:col-span-2 bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
+            <div class="flex items-center justify-between mb-6">
+              <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
+                  <TrendingUp class="w-4 h-4 text-white" />
+                </div>
+                <div>
+                  <h3 class="font-semibold text-foreground">Asset Trends</h3>
+                  <p class="text-xs text-muted-foreground">Last 6 months overview</p>
+                </div>
               </div>
-              <div class="space-y-1.5">
+              <!-- Legend -->
+              <div class="hidden sm:flex items-center gap-4 text-xs">
+                <div class="flex items-center gap-1.5">
+                  <div class="w-2.5 h-2.5 rounded-full bg-emerald-500"></div>
+                  <span class="text-muted-foreground">Active</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                  <div class="w-2.5 h-2.5 rounded-full bg-amber-500"></div>
+                  <span class="text-muted-foreground">Maintenance</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                  <div class="w-2.5 h-2.5 rounded-full bg-slate-400"></div>
+                  <span class="text-muted-foreground">Inactive</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                  <div class="w-2.5 h-2.5 rounded-full bg-red-500"></div>
+                  <span class="text-muted-foreground">Disposed</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Chart -->
+            <div v-if="monthlyData.length === 0" class="flex items-center justify-center h-56">
+              <div class="text-center">
+                <div class="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-2">
+                  <TrendingUp class="w-5 h-5 text-slate-400" />
+                </div>
+                <p class="text-sm text-muted-foreground">Loading chart data...</p>
+              </div>
+            </div>
+            <div v-else class="h-56">
+              <div class="flex items-end justify-between h-full gap-4 px-2">
                 <div
-                  v-for="(activity, index) in group.activities"
-                  :key="index"
-                  class="flex items-center gap-2"
+                  v-for="data in monthlyData"
+                  :key="`${data.month}-${data.year}`"
+                  class="flex-1 flex flex-col h-full group/bar"
                 >
-                  <div :class="['w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0', activity.iconBg]">
-                    <component :is="activity.icon" class="w-3 h-3 text-white" />
+                  <!-- Total badge -->
+                  <div class="text-center mb-2 opacity-0 group-hover/bar:opacity-100 transition-opacity">
+                    <span v-if="data.total > 0" class="inline-flex items-center justify-center px-2 py-0.5 text-[10px] font-bold bg-slate-900 text-white rounded-full">
+                      {{ data.total }}
+                    </span>
                   </div>
-                  <div class="flex-1 min-w-0">
-                    <p class="text-xs font-medium text-foreground truncate">{{ activity.item }}</p>
+                  <!-- Bars -->
+                  <div class="flex-1 flex items-end justify-center gap-1">
+                    <div class="flex flex-col items-center justify-end h-full">
+                      <span v-if="data.active > 0" class="text-[10px] font-semibold text-emerald-600 mb-1">{{ data.active }}</span>
+                      <div
+                        class="w-5 bg-gradient-to-t from-emerald-500 to-emerald-400 rounded-t-md transition-all duration-500 hover:from-emerald-600 hover:to-emerald-500"
+                        :style="{ height: `${maxMonthly > 0 ? (data.active / maxMonthly) * 100 : 0}%`, minHeight: data.active > 0 ? '8px' : '0' }"
+                      ></div>
+                    </div>
+                    <div class="flex flex-col items-center justify-end h-full">
+                      <span v-if="data.maintenance > 0" class="text-[10px] font-semibold text-amber-600 mb-1">{{ data.maintenance }}</span>
+                      <div
+                        class="w-5 bg-gradient-to-t from-amber-500 to-amber-400 rounded-t-md transition-all duration-500 hover:from-amber-600 hover:to-amber-500"
+                        :style="{ height: `${maxMonthly > 0 ? (data.maintenance / maxMonthly) * 100 : 0}%`, minHeight: data.maintenance > 0 ? '8px' : '0' }"
+                      ></div>
+                    </div>
+                    <div class="flex flex-col items-center justify-end h-full">
+                      <span v-if="data.inactive > 0" class="text-[10px] font-semibold text-slate-500 mb-1">{{ data.inactive }}</span>
+                      <div
+                        class="w-5 bg-gradient-to-t from-slate-400 to-slate-300 rounded-t-md transition-all duration-500 hover:from-slate-500 hover:to-slate-400"
+                        :style="{ height: `${maxMonthly > 0 ? (data.inactive / maxMonthly) * 100 : 0}%`, minHeight: data.inactive > 0 ? '8px' : '0' }"
+                      ></div>
+                    </div>
+                    <div class="flex flex-col items-center justify-end h-full">
+                      <span v-if="data.disposed > 0" class="text-[10px] font-semibold text-red-600 mb-1">{{ data.disposed }}</span>
+                      <div
+                        class="w-5 bg-gradient-to-t from-red-500 to-red-400 rounded-t-md transition-all duration-500 hover:from-red-600 hover:to-red-500"
+                        :style="{ height: `${maxMonthly > 0 ? (data.disposed / maxMonthly) * 100 : 0}%`, minHeight: data.disposed > 0 ? '8px' : '0' }"
+                      ></div>
+                    </div>
                   </div>
-                  <span class="text-[10px] text-muted-foreground">{{ activity.time }}</span>
+                  <!-- Month label -->
+                  <div class="text-center pt-3 mt-2 border-t border-slate-100">
+                    <span class="text-xs font-medium text-slate-600">{{ data.month }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Recent Activity -->
+          <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
+            <div class="flex items-center gap-3 mb-5">
+              <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500 to-violet-600 flex items-center justify-center">
+                <Activity class="w-4 h-4 text-white" />
+              </div>
+              <div>
+                <h3 class="font-semibold text-foreground">Recent Activity</h3>
+                <p class="text-xs text-muted-foreground">Latest updates</p>
+              </div>
+            </div>
+
+            <div v-if="recentActivities.length === 0" class="text-center py-8">
+              <div class="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3">
+                <Clock class="w-6 h-6 text-slate-400" />
+              </div>
+              <p class="text-sm text-muted-foreground">No recent activity</p>
+            </div>
+            <div v-else class="max-h-[280px] overflow-y-auto space-y-4 pr-1 scrollbar-thin">
+              <div v-for="group in activitiesByDate" :key="group.date">
+                <div class="sticky top-0 bg-white py-1.5 mb-2 z-10">
+                  <span class="text-[11px] font-semibold text-primary uppercase tracking-wider">{{ group.label }}</span>
+                </div>
+                <div class="space-y-2">
+                  <div
+                    v-for="(activity, index) in group.activities"
+                    :key="index"
+                    class="flex items-center gap-3 p-2 rounded-xl hover:bg-slate-50 transition-colors"
+                  >
+                    <div :class="['w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm', activity.iconBg]">
+                      <component :is="activity.icon" class="w-3.5 h-3.5 text-white" />
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <p class="text-sm font-medium text-foreground truncate">{{ activity.item }}</p>
+                    </div>
+                    <span class="text-[11px] text-muted-foreground font-medium">{{ activity.time }}</span>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <!-- Asset Status + License Status Row -->
-      <div class="grid lg:grid-cols-2 gap-6">
-        <!-- Asset Status -->
-        <div class="bg-card border rounded-xl p-5 hover:shadow-lg hover:shadow-black/5 hover:-translate-y-0.5 transition-all duration-300">
-          <div class="flex items-center justify-between mb-5">
-            <div>
-              <h3 class="font-semibold text-foreground">Asset Status</h3>
-              <p class="text-xs text-muted-foreground">Current distribution</p>
+        <!-- Status Cards Row -->
+        <div class="grid lg:grid-cols-2 gap-6">
+          <!-- Asset Status -->
+          <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
+            <div class="flex items-center justify-between mb-6">
+              <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center">
+                  <Package class="w-4 h-4 text-white" />
+                </div>
+                <div>
+                  <h3 class="font-semibold text-foreground">Asset Status</h3>
+                  <p class="text-xs text-muted-foreground">Current distribution</p>
+                </div>
+              </div>
+              <div class="text-right">
+                <span class="text-2xl font-bold text-foreground">{{ stats.totalAssets }}</span>
+                <p class="text-[11px] text-muted-foreground">Total</p>
+              </div>
             </div>
-            <div class="text-right">
-              <span class="text-2xl font-bold text-foreground">{{ stats.totalAssets }}</span>
-              <p class="text-xs text-muted-foreground">Total Assets</p>
+
+            <div class="grid grid-cols-2 gap-3">
+              <!-- Active -->
+              <div class="group p-4 rounded-xl bg-gradient-to-br from-emerald-50 to-emerald-100/50 border border-emerald-100 hover:shadow-md hover:shadow-emerald-100 transition-all">
+                <div class="flex items-center justify-between mb-3">
+                  <div class="flex items-center gap-2">
+                    <CheckCircle2 class="w-4 h-4 text-emerald-600" />
+                    <span class="text-sm font-medium text-emerald-700">Active</span>
+                  </div>
+                  <span class="text-xl font-bold text-emerald-600">{{ stats.activeAssets }}</span>
+                </div>
+                <div class="h-2 bg-emerald-200/50 rounded-full overflow-hidden">
+                  <div class="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 rounded-full transition-all duration-700" :style="{ width: `${stats.totalAssets ? (stats.activeAssets / stats.totalAssets) * 100 : 0}%` }"></div>
+                </div>
+              </div>
+
+              <!-- Maintenance -->
+              <div class="group p-4 rounded-xl bg-gradient-to-br from-amber-50 to-amber-100/50 border border-amber-100 hover:shadow-md hover:shadow-amber-100 transition-all">
+                <div class="flex items-center justify-between mb-3">
+                  <div class="flex items-center gap-2">
+                    <AlertTriangle class="w-4 h-4 text-amber-600" />
+                    <span class="text-sm font-medium text-amber-700">Maintenance</span>
+                  </div>
+                  <span class="text-xl font-bold text-amber-600">{{ stats.maintenanceAssets }}</span>
+                </div>
+                <div class="h-2 bg-amber-200/50 rounded-full overflow-hidden">
+                  <div class="h-full bg-gradient-to-r from-amber-500 to-amber-400 rounded-full transition-all duration-700" :style="{ width: `${stats.totalAssets ? (stats.maintenanceAssets / stats.totalAssets) * 100 : 0}%` }"></div>
+                </div>
+              </div>
+
+              <!-- Inactive -->
+              <div class="group p-4 rounded-xl bg-gradient-to-br from-slate-50 to-slate-100/50 border border-slate-200 hover:shadow-md hover:shadow-slate-100 transition-all">
+                <div class="flex items-center justify-between mb-3">
+                  <div class="flex items-center gap-2">
+                    <XCircle class="w-4 h-4 text-slate-500" />
+                    <span class="text-sm font-medium text-slate-600">Inactive</span>
+                  </div>
+                  <span class="text-xl font-bold text-slate-600">{{ stats.inactiveAssets }}</span>
+                </div>
+                <div class="h-2 bg-slate-200/50 rounded-full overflow-hidden">
+                  <div class="h-full bg-gradient-to-r from-slate-500 to-slate-400 rounded-full transition-all duration-700" :style="{ width: `${stats.totalAssets ? (stats.inactiveAssets / stats.totalAssets) * 100 : 0}%` }"></div>
+                </div>
+              </div>
+
+              <!-- Disposed -->
+              <div class="group p-4 rounded-xl bg-gradient-to-br from-red-50 to-red-100/50 border border-red-100 hover:shadow-md hover:shadow-red-100 transition-all">
+                <div class="flex items-center justify-between mb-3">
+                  <div class="flex items-center gap-2">
+                    <Trash2 class="w-4 h-4 text-red-600" />
+                    <span class="text-sm font-medium text-red-700">Disposed</span>
+                  </div>
+                  <span class="text-xl font-bold text-red-600">{{ stats.disposedAssets }}</span>
+                </div>
+                <div class="h-2 bg-red-200/50 rounded-full overflow-hidden">
+                  <div class="h-full bg-gradient-to-r from-red-500 to-red-400 rounded-full transition-all duration-700" :style="{ width: `${stats.totalAssets ? (stats.disposedAssets / stats.totalAssets) * 100 : 0}%` }"></div>
+                </div>
+              </div>
             </div>
           </div>
 
-          <!-- Status cards -->
-          <div class="grid grid-cols-2 gap-3">
-            <div class="p-3 rounded-xl bg-emerald-50 border border-emerald-100">
-              <div class="flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                  <div class="w-2 h-2 rounded-full bg-emerald-500"></div>
-                  <span class="text-sm text-emerald-700">Active</span>
+          <!-- License Status -->
+          <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
+            <div class="flex items-center justify-between mb-6">
+              <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-rose-500 to-rose-600 flex items-center justify-center">
+                  <Key class="w-4 h-4 text-white" />
                 </div>
-                <span class="text-lg font-bold text-emerald-600">{{ stats.activeAssets }}</span>
+                <div>
+                  <h3 class="font-semibold text-foreground">License Status</h3>
+                  <p class="text-xs text-muted-foreground">Software licenses</p>
+                </div>
               </div>
-              <div class="mt-2 h-1.5 bg-emerald-100 rounded-full overflow-hidden">
-                <div class="h-full bg-emerald-500 rounded-full transition-all duration-500" :style="{ width: `${stats.totalAssets ? (stats.activeAssets / stats.totalAssets) * 100 : 0}%` }"></div>
+              <div class="text-right">
+                <span class="text-2xl font-bold text-foreground">{{ stats.totalLicenses }}</span>
+                <p class="text-[11px] text-muted-foreground">Total</p>
               </div>
             </div>
 
-            <div class="p-3 rounded-xl bg-amber-50 border border-amber-100">
-              <div class="flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                  <div class="w-2 h-2 rounded-full bg-amber-500"></div>
-                  <span class="text-sm text-amber-700">Maintenance</span>
+            <div class="grid grid-cols-2 gap-3">
+              <!-- Active -->
+              <div class="group p-4 rounded-xl bg-gradient-to-br from-emerald-50 to-emerald-100/50 border border-emerald-100 hover:shadow-md hover:shadow-emerald-100 transition-all">
+                <div class="flex items-center justify-between mb-3">
+                  <div class="flex items-center gap-2">
+                    <CheckCircle2 class="w-4 h-4 text-emerald-600" />
+                    <span class="text-sm font-medium text-emerald-700">Active</span>
+                  </div>
+                  <span class="text-xl font-bold text-emerald-600">{{ licenseStats.active }}</span>
                 </div>
-                <span class="text-lg font-bold text-amber-600">{{ stats.maintenanceAssets }}</span>
-              </div>
-              <div class="mt-2 h-1.5 bg-amber-100 rounded-full overflow-hidden">
-                <div class="h-full bg-amber-500 rounded-full transition-all duration-500" :style="{ width: `${stats.totalAssets ? (stats.maintenanceAssets / stats.totalAssets) * 100 : 0}%` }"></div>
-              </div>
-            </div>
-
-            <div class="p-3 rounded-xl bg-gray-50 border border-gray-200">
-              <div class="flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                  <div class="w-2 h-2 rounded-full bg-gray-400"></div>
-                  <span class="text-sm text-gray-600">Inactive</span>
+                <div class="h-2 bg-emerald-200/50 rounded-full overflow-hidden">
+                  <div class="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 rounded-full transition-all duration-700" :style="{ width: `${stats.totalLicenses ? (licenseStats.active / stats.totalLicenses) * 100 : 0}%` }"></div>
                 </div>
-                <span class="text-lg font-bold text-gray-600">{{ stats.inactiveAssets }}</span>
               </div>
-              <div class="mt-2 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                <div class="h-full bg-gray-400 rounded-full transition-all duration-500" :style="{ width: `${stats.totalAssets ? (stats.inactiveAssets / stats.totalAssets) * 100 : 0}%` }"></div>
-              </div>
-            </div>
 
-            <div class="p-3 rounded-xl bg-red-50 border border-red-100">
-              <div class="flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                  <div class="w-2 h-2 rounded-full bg-red-500"></div>
-                  <span class="text-sm text-red-700">Disposed</span>
+              <!-- Expiring Soon -->
+              <div class="group p-4 rounded-xl bg-gradient-to-br from-amber-50 to-amber-100/50 border border-amber-100 hover:shadow-md hover:shadow-amber-100 transition-all">
+                <div class="flex items-center justify-between mb-3">
+                  <div class="flex items-center gap-2">
+                    <AlertTriangle class="w-4 h-4 text-amber-600" />
+                    <span class="text-sm font-medium text-amber-700">Expiring</span>
+                  </div>
+                  <span class="text-xl font-bold text-amber-600">{{ licenseStats.expiringSoon }}</span>
                 </div>
-                <span class="text-lg font-bold text-red-600">{{ stats.disposedAssets }}</span>
-              </div>
-              <div class="mt-2 h-1.5 bg-red-100 rounded-full overflow-hidden">
-                <div class="h-full bg-red-500 rounded-full transition-all duration-500" :style="{ width: `${stats.totalAssets ? (stats.disposedAssets / stats.totalAssets) * 100 : 0}%` }"></div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- License Status -->
-        <div class="bg-card border rounded-xl p-5 hover:shadow-lg hover:shadow-black/5 hover:-translate-y-0.5 transition-all duration-300">
-          <div class="flex items-center justify-between mb-5">
-            <div>
-              <h3 class="font-semibold text-foreground">License Status</h3>
-              <p class="text-xs text-muted-foreground">Software licenses</p>
-            </div>
-            <div class="text-right">
-              <span class="text-2xl font-bold text-foreground">{{ stats.totalLicenses }}</span>
-              <p class="text-xs text-muted-foreground">Total Licenses</p>
-            </div>
-          </div>
-
-          <!-- License status cards -->
-          <div class="grid grid-cols-2 gap-3">
-            <div class="p-3 rounded-xl bg-emerald-50 border border-emerald-100">
-              <div class="flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                  <div class="w-2 h-2 rounded-full bg-emerald-500"></div>
-                  <span class="text-sm text-emerald-700">Active</span>
+                <div class="h-2 bg-amber-200/50 rounded-full overflow-hidden">
+                  <div class="h-full bg-gradient-to-r from-amber-500 to-amber-400 rounded-full transition-all duration-700" :style="{ width: `${stats.totalLicenses ? (licenseStats.expiringSoon / stats.totalLicenses) * 100 : 0}%` }"></div>
                 </div>
-                <span class="text-lg font-bold text-emerald-600">{{ licenseStats.active }}</span>
               </div>
-              <div class="mt-2 h-1.5 bg-emerald-100 rounded-full overflow-hidden">
-                <div class="h-full bg-emerald-500 rounded-full transition-all duration-500" :style="{ width: `${stats.totalLicenses ? (licenseStats.active / stats.totalLicenses) * 100 : 0}%` }"></div>
-              </div>
-            </div>
 
-            <div class="p-3 rounded-xl bg-amber-50 border border-amber-100">
-              <div class="flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                  <div class="w-2 h-2 rounded-full bg-amber-500"></div>
-                  <span class="text-sm text-amber-700">Expiring Soon</span>
+              <!-- Expired -->
+              <div class="group p-4 rounded-xl bg-gradient-to-br from-red-50 to-red-100/50 border border-red-100 hover:shadow-md hover:shadow-red-100 transition-all">
+                <div class="flex items-center justify-between mb-3">
+                  <div class="flex items-center gap-2">
+                    <XCircle class="w-4 h-4 text-red-600" />
+                    <span class="text-sm font-medium text-red-700">Expired</span>
+                  </div>
+                  <span class="text-xl font-bold text-red-600">{{ licenseStats.expired }}</span>
                 </div>
-                <span class="text-lg font-bold text-amber-600">{{ licenseStats.expiringSoon }}</span>
+                <div class="h-2 bg-red-200/50 rounded-full overflow-hidden">
+                  <div class="h-full bg-gradient-to-r from-red-500 to-red-400 rounded-full transition-all duration-700" :style="{ width: `${stats.totalLicenses ? (licenseStats.expired / stats.totalLicenses) * 100 : 0}%` }"></div>
+                </div>
               </div>
-              <div class="mt-2 h-1.5 bg-amber-100 rounded-full overflow-hidden">
-                <div class="h-full bg-amber-500 rounded-full transition-all duration-500" :style="{ width: `${stats.totalLicenses ? (licenseStats.expiringSoon / stats.totalLicenses) * 100 : 0}%` }"></div>
-              </div>
-            </div>
 
-            <div class="p-3 rounded-xl bg-red-50 border border-red-100">
-              <div class="flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                  <div class="w-2 h-2 rounded-full bg-red-500"></div>
-                  <span class="text-sm text-red-700">Expired</span>
+              <!-- Seats Used -->
+              <div class="group p-4 rounded-xl bg-gradient-to-br from-sky-50 to-sky-100/50 border border-sky-100 hover:shadow-md hover:shadow-sky-100 transition-all">
+                <div class="flex items-center justify-between mb-3">
+                  <div class="flex items-center gap-2">
+                    <Users class="w-4 h-4 text-sky-600" />
+                    <span class="text-sm font-medium text-sky-700">Seats</span>
+                  </div>
+                  <span class="text-xl font-bold text-sky-600">{{ licenseStats.seatsUsed }}<span class="text-sm font-normal text-sky-400">/{{ licenseStats.seatsTotal }}</span></span>
                 </div>
-                <span class="text-lg font-bold text-red-600">{{ licenseStats.expired }}</span>
-              </div>
-              <div class="mt-2 h-1.5 bg-red-100 rounded-full overflow-hidden">
-                <div class="h-full bg-red-500 rounded-full transition-all duration-500" :style="{ width: `${stats.totalLicenses ? (licenseStats.expired / stats.totalLicenses) * 100 : 0}%` }"></div>
-              </div>
-            </div>
-
-            <div class="p-3 rounded-xl bg-sky-50 border border-sky-100">
-              <div class="flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                  <div class="w-2 h-2 rounded-full bg-sky-500"></div>
-                  <span class="text-sm text-sky-700">Seats Used</span>
+                <div class="h-2 bg-sky-200/50 rounded-full overflow-hidden">
+                  <div class="h-full bg-gradient-to-r from-sky-500 to-sky-400 rounded-full transition-all duration-700" :style="{ width: `${licenseStats.seatsTotal ? (licenseStats.seatsUsed / licenseStats.seatsTotal) * 100 : 0}%` }"></div>
                 </div>
-                <span class="text-lg font-bold text-sky-600">{{ licenseStats.seatsUsed }}/{{ licenseStats.seatsTotal }}</span>
-              </div>
-              <div class="mt-2 h-1.5 bg-sky-100 rounded-full overflow-hidden">
-                <div class="h-full bg-sky-500 rounded-full transition-all duration-500" :style="{ width: `${licenseStats.seatsTotal ? (licenseStats.seatsUsed / licenseStats.seatsTotal) * 100 : 0}%` }"></div>
               </div>
             </div>
           </div>
@@ -766,10 +776,17 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.stagger-children > *:nth-child(1) { animation-delay: 0ms; }
-.stagger-children > *:nth-child(2) { animation-delay: 50ms; }
-.stagger-children > *:nth-child(3) { animation-delay: 100ms; }
-.stagger-children > *:nth-child(4) { animation-delay: 150ms; }
-.stagger-children > *:nth-child(5) { animation-delay: 200ms; }
-.stagger-children > *:nth-child(6) { animation-delay: 250ms; }
+.scrollbar-thin::-webkit-scrollbar {
+  width: 4px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: #e2e8f0;
+  border-radius: 4px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: #cbd5e1;
+}
 </style>
