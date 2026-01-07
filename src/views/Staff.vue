@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { supabase } from '@/lib/supabase'
 import type { Staff, Location, Asset, Category, AssetHistory } from '@/types/database'
-import { Users, Plus, Pencil, Trash2, Mail, Phone, MapPin, Package, Eye, Clock, ChevronDown, ChevronUp } from 'lucide-vue-next'
+import { Users, Plus, Pencil, Trash2, Mail, Phone, MapPin, Package, Eye, Clock, ChevronDown, ChevronUp, Search } from 'lucide-vue-next'
 import Modal from '@/components/Modal.vue'
 
 interface StaffWithLocation extends Staff {
@@ -20,6 +20,19 @@ const staffList = ref<StaffWithLocation[]>([])
 const locations = ref<Location[]>([])
 const loading = ref(true)
 const saving = ref(false)
+const searchQuery = ref('')
+
+const filteredStaff = computed(() => {
+  if (!searchQuery.value.trim()) return staffList.value
+  const query = searchQuery.value.toLowerCase().trim()
+  return staffList.value.filter(staff =>
+    staff.name.toLowerCase().includes(query) ||
+    staff.staff_id.toLowerCase().includes(query) ||
+    (staff.position && staff.position.toLowerCase().includes(query)) ||
+    (staff.email && staff.email.toLowerCase().includes(query)) ||
+    (staff.locations?.name && staff.locations.name.toLowerCase().includes(query))
+  )
+})
 
 // Modal state
 const showModal = ref(false)
@@ -266,7 +279,7 @@ onMounted(fetchData)
 <template>
   <div class="p-6 lg:p-8">
     <!-- Header -->
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
       <div class="flex items-center gap-3">
         <div class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
           <Users class="w-5 h-5 text-primary" />
@@ -283,6 +296,17 @@ onMounted(fetchData)
         <Plus class="w-4 h-4" />
         Add Staff
       </button>
+    </div>
+
+    <!-- Search Box -->
+    <div class="relative mb-6">
+      <Search class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+      <input
+        v-model="searchQuery"
+        type="text"
+        placeholder="Search by name, staff ID, position, email, or location..."
+        class="w-full h-11 pl-11 pr-4 bg-card border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+      />
     </div>
 
     <!-- Loading -->
@@ -306,10 +330,19 @@ onMounted(fetchData)
       </button>
     </div>
 
+    <!-- No search results -->
+    <div v-else-if="filteredStaff.length === 0" class="bg-card border rounded-2xl p-12 text-center">
+      <div class="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-4">
+        <Search class="w-8 h-8 text-muted-foreground" />
+      </div>
+      <h3 class="text-lg font-semibold text-foreground mb-2">No results found</h3>
+      <p class="text-muted-foreground">Try a different search term</p>
+    </div>
+
     <!-- Grid -->
     <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 stagger-children">
       <div
-        v-for="staff in staffList"
+        v-for="staff in filteredStaff"
         :key="staff.id"
         class="group bg-card border rounded-2xl p-5 hover:shadow-lg hover:shadow-black/5 hover:-translate-y-0.5 transition-all duration-300"
       >
