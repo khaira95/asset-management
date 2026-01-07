@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { supabase } from '@/lib/supabase'
 import {
   LayoutDashboard,
@@ -11,6 +12,8 @@ import {
   Clock,
   FolderTree
 } from 'lucide-vue-next'
+
+const router = useRouter()
 
 interface Stats {
   totalAssets: number
@@ -43,27 +46,35 @@ const statCards = computed(() => [
     label: 'Total Assets',
     value: stats.value.totalAssets,
     icon: Package,
-    iconBg: 'bg-primary'
+    iconBg: 'bg-primary',
+    route: '/assets'
   },
   {
     label: 'Staff',
     value: stats.value.totalStaff,
     icon: Users,
-    iconBg: 'bg-violet-500'
+    iconBg: 'bg-violet-500',
+    route: '/staff'
   },
   {
     label: 'Locations',
     value: stats.value.totalLocations,
     icon: MapPin,
-    iconBg: 'bg-sky-500'
+    iconBg: 'bg-sky-500',
+    route: '/locations'
   },
   {
     label: 'Licenses',
     value: stats.value.totalLicenses,
     icon: Key,
-    iconBg: 'bg-rose-500'
+    iconBg: 'bg-rose-500',
+    route: '/licenses'
   },
 ])
+
+function navigateTo(route: string) {
+  router.push(route)
+}
 
 // Asset distribution for pie chart visualization
 const assetDistribution = computed(() => {
@@ -469,7 +480,8 @@ onMounted(() => {
         <div
           v-for="stat in statCards"
           :key="stat.label"
-          class="group bg-card border rounded-xl p-4 hover:shadow-lg hover:shadow-black/5 hover:-translate-y-0.5 transition-all duration-300 cursor-default"
+          class="group bg-card border rounded-xl p-4 hover:shadow-lg hover:shadow-black/5 hover:-translate-y-0.5 transition-all duration-300 cursor-pointer"
+          @click="navigateTo(stat.route)"
         >
           <div class="flex items-center justify-between mb-3">
             <div :class="['w-10 h-10 rounded-xl flex items-center justify-center', stat.iconBg]">
@@ -485,7 +497,7 @@ onMounted(() => {
       <!-- Asset Trends + Recent Activity Row -->
       <div class="grid lg:grid-cols-5 gap-6">
         <!-- Asset Trends Chart -->
-        <div class="lg:col-span-3 bg-card border rounded-xl p-5 hover:shadow-lg hover:shadow-black/5 hover:-translate-y-0.5 transition-all duration-300">
+        <div class="lg:col-span-3 bg-card border rounded-xl p-8 hover:shadow-lg hover:shadow-black/5 hover:-translate-y-0.5 transition-all duration-300 cursor-pointer" @click="navigateTo('/assets')">
           <div class="flex items-start justify-between mb-4">
             <div>
               <h3 class="font-semibold text-foreground">Asset Trends</h3>
@@ -574,7 +586,7 @@ onMounted(() => {
         </div>
 
         <!-- Recent Activity -->
-        <div class="lg:col-span-2 bg-card border rounded-xl p-5 hover:shadow-lg hover:shadow-black/5 hover:-translate-y-0.5 transition-all duration-300">
+        <div class="lg:col-span-2 bg-card border rounded-xl p-8 hover:shadow-lg hover:shadow-black/5 hover:-translate-y-0.5 transition-all duration-300 cursor-pointer" @click="navigateTo('/assets')">
           <div class="mb-3">
             <h3 class="font-semibold text-foreground">Recent Activity</h3>
             <p class="text-xs text-muted-foreground">Latest updates</p>
@@ -612,7 +624,7 @@ onMounted(() => {
       <!-- Asset Status + License Status Row -->
       <div class="grid lg:grid-cols-2 gap-6">
         <!-- Asset Status -->
-        <div class="bg-card border rounded-xl p-5 hover:shadow-lg hover:shadow-black/5 hover:-translate-y-0.5 transition-all duration-300">
+        <div class="bg-card border rounded-xl p-5 hover:shadow-lg hover:shadow-black/5 hover:-translate-y-0.5 transition-all duration-300 cursor-pointer" @click="navigateTo('/assets')">
           <div class="flex items-center justify-between mb-5">
             <div>
               <h3 class="font-semibold text-foreground">Asset Status</h3>
@@ -681,7 +693,7 @@ onMounted(() => {
         </div>
 
         <!-- License Status -->
-        <div class="bg-card border rounded-xl p-5 hover:shadow-lg hover:shadow-black/5 hover:-translate-y-0.5 transition-all duration-300">
+        <div class="bg-card border rounded-xl p-5 hover:shadow-lg hover:shadow-black/5 hover:-translate-y-0.5 transition-all duration-300 cursor-pointer" @click="navigateTo('/licenses')">
           <div class="flex items-center justify-between mb-5">
             <div>
               <h3 class="font-semibold text-foreground">License Status</h3>
