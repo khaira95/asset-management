@@ -211,6 +211,40 @@ interface Activity {
 
 const recentActivities = ref<Activity[]>([])
 
+// Group activities by date
+const activitiesByDate = computed(() => {
+  const groups: { date: string; label: string; activities: Activity[] }[] = []
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const yesterday = new Date(today)
+  yesterday.setDate(yesterday.getDate() - 1)
+
+  recentActivities.value.forEach(activity => {
+    const activityDate = new Date(activity.timestamp)
+    activityDate.setHours(0, 0, 0, 0)
+
+    let label = ''
+    const dateKey = activityDate.toISOString().split('T')[0]
+
+    if (activityDate.getTime() === today.getTime()) {
+      label = 'Hari Ini'
+    } else if (activityDate.getTime() === yesterday.getTime()) {
+      label = 'Semalam'
+    } else {
+      label = activityDate.toLocaleDateString('en-MY', { day: '2-digit', month: 'short', year: 'numeric' })
+    }
+
+    let group = groups.find(g => g.date === dateKey)
+    if (!group) {
+      group = { date: dateKey, label, activities: [] }
+      groups.push(group)
+    }
+    group.activities.push(activity)
+  })
+
+  return groups.sort((a, b) => b.date.localeCompare(a.date))
+})
+
 function formatTimeAgo(date: Date): string {
   const now = new Date()
   const diffMs = now.getTime() - date.getTime()
@@ -228,11 +262,11 @@ function formatTimeAgo(date: Date): string {
 async function fetchRecentActivities() {
   try {
     const [assetsRes, staffRes, locationsRes, categoriesRes, licensesRes] = await Promise.all([
-      supabase.from('assets').select('asset_name, created_at, status').order('created_at', { ascending: false }).limit(5),
-      supabase.from('staff').select('name, created_at').order('created_at', { ascending: false }).limit(3),
-      supabase.from('locations').select('name, created_at').order('created_at', { ascending: false }).limit(3),
-      supabase.from('categories').select('name, created_at').order('created_at', { ascending: false }).limit(3),
-      supabase.from('licenses').select('name, created_at, expiration_date').order('created_at', { ascending: false }).limit(3)
+      supabase.from('assets').select('asset_name, created_at, status').order('created_at', { ascending: false }).limit(10),
+      supabase.from('staff').select('name, created_at').order('created_at', { ascending: false }).limit(10),
+      supabase.from('locations').select('name, created_at').order('created_at', { ascending: false }).limit(5),
+      supabase.from('categories').select('name, created_at').order('created_at', { ascending: false }).limit(5),
+      supabase.from('licenses').select('name, created_at, expiration_date').order('created_at', { ascending: false }).limit(5)
     ])
 
     const activities: Activity[] = []
@@ -307,9 +341,9 @@ async function fetchRecentActivities() {
       })
     }
 
-    // Sort by timestamp (newest first) and take top 6
+    // Sort by timestamp (newest first) and take top 20
     activities.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
-    recentActivities.value = activities.slice(0, 6)
+    recentActivities.value = activities.slice(0, 20)
   } catch (error) {
     console.error('Error fetching recent activities:', error)
   }
@@ -424,10 +458,10 @@ onMounted(() => {
         </div>
 
         <!-- Clustered Column Chart -->
-        <div v-if="monthlyData.length === 0" class="flex items-center justify-center h-72">
+        <div v-if="monthlyData.length === 0" class="flex items-center justify-center h-48">
           <p class="text-sm text-muted-foreground">Loading...</p>
         </div>
-        <div v-else class="h-80">
+        <div v-else class="h-56">
           <div class="flex items-end justify-around h-full gap-6 px-4">
             <div
               v-for="data in monthlyData"
@@ -531,19 +565,28 @@ onMounted(() => {
             <Clock class="w-6 h-6 text-muted-foreground/30 mx-auto mb-2" />
             <p class="text-sm text-muted-foreground">No recent activity</p>
           </div>
-          <div v-else class="space-y-3">
-            <div
-              v-for="(activity, index) in recentActivities.slice(0, 4)"
-              :key="index"
-              class="flex items-center gap-3"
-            >
-              <div :class="['w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0', activity.iconBg]">
-                <component :is="activity.icon" class="w-4 h-4 text-white" />
+          <div v-else class="max-h-48 overflow-y-auto space-y-4 pr-2">
+            <div v-for="group in activitiesByDate" :key="group.date">
+              <!-- Date header -->
+              <div class="sticky top-0 bg-card py-1 mb-2">
+                <span class="text-xs font-semibold text-primary">{{ group.label }}</span>
               </div>
-              <div class="flex-1 min-w-0">
-                <p class="text-sm font-medium text-foreground truncate">{{ activity.item }}</p>
+              <!-- Activities for this date -->
+              <div class="space-y-2">
+                <div
+                  v-for="(activity, index) in group.activities"
+                  :key="index"
+                  class="flex items-center gap-3"
+                >
+                  <div :class="['w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0', activity.iconBg]">
+                    <component :is="activity.icon" class="w-3.5 h-3.5 text-white" />
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <p class="text-sm font-medium text-foreground truncate">{{ activity.item }}</p>
+                  </div>
+                  <span class="text-xs text-muted-foreground">{{ activity.time }}</span>
+                </div>
               </div>
-              <span class="text-xs text-muted-foreground">{{ activity.time }}</span>
             </div>
           </div>
         </div>
