@@ -5,8 +5,16 @@ import type { Category } from '@/types/database'
 import { FolderTree, Plus, Pencil, Trash2, Hash, Package } from 'lucide-vue-next'
 import Modal from '@/components/Modal.vue'
 
+interface AssetStatusCount {
+  active: number
+  maintenance: number
+  inactive: number
+  disposed: number
+  total: number
+}
+
 interface CategoryWithCount extends Category {
-  asset_count?: number
+  asset_counts: AssetStatusCount
 }
 
 const categories = ref<CategoryWithCount[]>([])
@@ -48,25 +56,29 @@ async function fetchCategories() {
   try {
     const [catRes, assetsRes] = await Promise.all([
       supabase.from('categories').select('*').order('name'),
-      supabase.from('assets').select('category_id')
+      supabase.from('assets').select('category_id, status')
     ])
 
     if (catRes.error) throw catRes.error
 
-    // Count assets per category
-    const assetCounts: Record<number, number> = {}
+    // Count assets per category by status
+    const assetCounts: Record<number, AssetStatusCount> = {}
     if (assetsRes.data) {
       assetsRes.data.forEach(asset => {
         if (asset.category_id) {
-          assetCounts[asset.category_id] = (assetCounts[asset.category_id] || 0) + 1
+          if (!assetCounts[asset.category_id]) {
+            assetCounts[asset.category_id] = { active: 0, maintenance: 0, inactive: 0, disposed: 0, total: 0 }
+          }
+          assetCounts[asset.category_id][asset.status as keyof Omit<AssetStatusCount, 'total'>]++
+          assetCounts[asset.category_id].total++
         }
       })
     }
 
-    // Add asset count to each category
+    // Add asset counts to each category
     categories.value = (catRes.data || []).map(cat => ({
       ...cat,
-      asset_count: assetCounts[cat.id] || 0
+      asset_counts: assetCounts[cat.id] || { active: 0, maintenance: 0, inactive: 0, disposed: 0, total: 0 }
     }))
   } catch (error) {
     console.error('Error fetching categories:', error)
@@ -208,13 +220,28 @@ onMounted(fetchCategories)
               </span>
             </div>
             <h3 class="font-semibold text-foreground text-lg">{{ category.name }}</h3>
-            <p class="flex items-center gap-1.5 text-sm mt-2">
+
+            <!-- Asset counts by status -->
+            <div class="flex items-center gap-1.5 mt-3">
               <Package class="w-3.5 h-3.5 text-primary" />
-              <span :class="category.asset_count > 0 ? 'text-foreground font-medium' : 'text-muted-foreground'">
-                {{ category.asset_count }} asset{{ category.asset_count !== 1 ? 's' : '' }}
+              <span class="text-sm font-medium text-foreground">{{ category.asset_counts.total }} assets</span>
+            </div>
+            <div v-if="category.asset_counts.total > 0" class="flex flex-wrap gap-1.5 mt-2">
+              <span v-if="category.asset_counts.active > 0" class="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                {{ category.asset_counts.active }} Active
               </span>
-            </p>
-            <p v-if="category.description" class="text-sm text-muted-foreground mt-2 line-clamp-2">
+              <span v-if="category.asset_counts.maintenance > 0" class="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                {{ category.asset_counts.maintenance }} Maintenance
+              </span>
+              <span v-if="category.asset_counts.inactive > 0" class="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-600 border border-gray-200">
+                {{ category.asset_counts.inactive }} Inactive
+              </span>
+              <span v-if="category.asset_counts.disposed > 0" class="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-red-50 text-red-700 border border-red-200">
+                {{ category.asset_counts.disposed }} Disposed
+              </span>
+            </div>
+
+            <p v-if="category.description" class="text-sm text-muted-foreground mt-3 line-clamp-2">
               {{ category.description }}
             </p>
           </div>
