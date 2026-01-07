@@ -529,28 +529,40 @@ onMounted(() => {
                     {{ data.total }}
                   </span>
                 </div>
-                <!-- Clustered bars -->
+                <!-- Clustered bars with numbers -->
                 <div class="flex-1 flex items-end justify-center gap-1">
-                  <div
-                    class="w-4 bg-emerald-500 rounded-t transition-all duration-500"
-                    :style="{ height: `${maxMonthly > 0 ? (data.active / maxMonthly) * 100 : 0}%`, minHeight: data.active > 0 ? '4px' : '0' }"
-                    :title="`Active: ${data.active}`"
-                  ></div>
-                  <div
-                    class="w-4 bg-amber-500 rounded-t transition-all duration-500"
-                    :style="{ height: `${maxMonthly > 0 ? (data.maintenance / maxMonthly) * 100 : 0}%`, minHeight: data.maintenance > 0 ? '4px' : '0' }"
-                    :title="`Maintenance: ${data.maintenance}`"
-                  ></div>
-                  <div
-                    class="w-4 bg-gray-400 rounded-t transition-all duration-500"
-                    :style="{ height: `${maxMonthly > 0 ? (data.inactive / maxMonthly) * 100 : 0}%`, minHeight: data.inactive > 0 ? '4px' : '0' }"
-                    :title="`Inactive: ${data.inactive}`"
-                  ></div>
-                  <div
-                    class="w-4 bg-red-500 rounded-t transition-all duration-500"
-                    :style="{ height: `${maxMonthly > 0 ? (data.disposed / maxMonthly) * 100 : 0}%`, minHeight: data.disposed > 0 ? '4px' : '0' }"
-                    :title="`Disposed: ${data.disposed}`"
-                  ></div>
+                  <!-- Active -->
+                  <div class="flex flex-col items-center justify-end h-full">
+                    <span v-if="data.active > 0" class="text-[10px] font-semibold text-emerald-600 mb-0.5">{{ data.active }}</span>
+                    <div
+                      class="w-5 bg-emerald-500 rounded-t transition-all duration-500"
+                      :style="{ height: `${maxMonthly > 0 ? (data.active / maxMonthly) * 100 : 0}%`, minHeight: data.active > 0 ? '4px' : '0' }"
+                    ></div>
+                  </div>
+                  <!-- Maintenance -->
+                  <div class="flex flex-col items-center justify-end h-full">
+                    <span v-if="data.maintenance > 0" class="text-[10px] font-semibold text-amber-600 mb-0.5">{{ data.maintenance }}</span>
+                    <div
+                      class="w-5 bg-amber-500 rounded-t transition-all duration-500"
+                      :style="{ height: `${maxMonthly > 0 ? (data.maintenance / maxMonthly) * 100 : 0}%`, minHeight: data.maintenance > 0 ? '4px' : '0' }"
+                    ></div>
+                  </div>
+                  <!-- Inactive -->
+                  <div class="flex flex-col items-center justify-end h-full">
+                    <span v-if="data.inactive > 0" class="text-[10px] font-semibold text-gray-500 mb-0.5">{{ data.inactive }}</span>
+                    <div
+                      class="w-5 bg-gray-400 rounded-t transition-all duration-500"
+                      :style="{ height: `${maxMonthly > 0 ? (data.inactive / maxMonthly) * 100 : 0}%`, minHeight: data.inactive > 0 ? '4px' : '0' }"
+                    ></div>
+                  </div>
+                  <!-- Disposed -->
+                  <div class="flex flex-col items-center justify-end h-full">
+                    <span v-if="data.disposed > 0" class="text-[10px] font-semibold text-red-600 mb-0.5">{{ data.disposed }}</span>
+                    <div
+                      class="w-5 bg-red-500 rounded-t transition-all duration-500"
+                      :style="{ height: `${maxMonthly > 0 ? (data.disposed / maxMonthly) * 100 : 0}%`, minHeight: data.disposed > 0 ? '4px' : '0' }"
+                    ></div>
+                  </div>
                 </div>
                 <!-- Month Labels -->
                 <div class="text-center pt-2 mt-1 border-t border-border/50">
