@@ -146,22 +146,25 @@ async function fetchMonthlyData() {
       const monthEnd = new Date(now.getFullYear(), now.getMonth() - (5 - idx) + 1, 0, 23, 59, 59)
 
       assets.forEach(asset => {
-        const createdAt = new Date(asset.created_at)
-
-        // Asset must exist by end of this month
-        if (createdAt > monthEnd) return
-
-        // Find status at end of this month based on effective_date
-        // Default to 'active' (status when created)
-        let statusAtMonth = 'active'
-
         // Get all status changes for this asset up to monthEnd
         const assetHistory = history.filter(h => {
           if (h.asset_id !== asset.id) return false
-          // Use effective_date if available, otherwise use created_at
           const changeDate = h.effective_date ? parseDate(h.effective_date) : parseDate(h.created_at)
           return changeDate && changeDate <= monthEnd
         })
+
+        // Check if asset existed by this month
+        // Asset exists if: created_at <= monthEnd OR has history with effective_date <= monthEnd
+        const createdAt = new Date(asset.created_at)
+        const hasHistoryInMonth = assetHistory.length > 0
+
+        if (createdAt > monthEnd && !hasHistoryInMonth) {
+          // Asset didn't exist yet and no history for this period
+          return
+        }
+
+        // Find status at end of this month based on effective_date
+        let statusAtMonth = 'active' // Default when created
 
         // Sort by effective_date to get the latest status at monthEnd
         assetHistory.sort((a, b) => {
@@ -177,7 +180,7 @@ async function fetchMonthlyData() {
             statusAtMonth = lastChange.new_value
           }
         } else {
-          // No history, use current status (for assets without history tracking)
+          // No history for this month, use current status
           statusAtMonth = asset.status
         }
 
