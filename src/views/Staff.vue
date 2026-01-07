@@ -2,11 +2,12 @@
 import { ref, onMounted } from 'vue'
 import { supabase } from '@/lib/supabase'
 import type { Staff, Location } from '@/types/database'
-import { Users, Plus, Pencil, Trash2, Mail, Phone, MapPin, User } from 'lucide-vue-next'
+import { Users, Plus, Pencil, Trash2, Mail, Phone, MapPin, Package } from 'lucide-vue-next'
 import Modal from '@/components/Modal.vue'
 
 interface StaffWithLocation extends Staff {
   locations: Location | null
+  asset_count?: number
 }
 
 const staffList = ref<StaffWithLocation[]>([])
@@ -57,15 +58,30 @@ function closeModal() {
 
 async function fetchData() {
   try {
-    const [staffRes, locRes] = await Promise.all([
+    const [staffRes, locRes, assetsRes] = await Promise.all([
       supabase.from('staff').select('*, locations (*)').order('name'),
-      supabase.from('locations').select('*').order('name')
+      supabase.from('locations').select('*').order('name'),
+      supabase.from('assets').select('staff_id')
     ])
 
     if (staffRes.error) throw staffRes.error
     if (locRes.error) throw locRes.error
 
-    staffList.value = staffRes.data || []
+    // Count assets per staff
+    const assetCounts: Record<number, number> = {}
+    if (assetsRes.data) {
+      assetsRes.data.forEach(asset => {
+        if (asset.staff_id) {
+          assetCounts[asset.staff_id] = (assetCounts[asset.staff_id] || 0) + 1
+        }
+      })
+    }
+
+    // Add asset count to each staff
+    staffList.value = (staffRes.data || []).map(staff => ({
+      ...staff,
+      asset_count: assetCounts[staff.id] || 0
+    }))
     locations.value = locRes.data || []
   } catch (error) {
     console.error('Error fetching data:', error)
@@ -224,6 +240,12 @@ onMounted(fetchData)
             <p v-if="staff.position" class="text-sm text-foreground mt-2">{{ staff.position }}</p>
 
             <div class="mt-3 space-y-1.5">
+              <p class="flex items-center gap-2 text-sm">
+                <Package class="w-3.5 h-3.5 text-primary" />
+                <span :class="staff.asset_count > 0 ? 'text-foreground font-medium' : 'text-muted-foreground'">
+                  {{ staff.asset_count }} asset{{ staff.asset_count !== 1 ? 's' : '' }}
+                </span>
+              </p>
               <p v-if="staff.locations" class="flex items-center gap-2 text-sm text-muted-foreground">
                 <MapPin class="w-3.5 h-3.5" />
                 {{ staff.locations.name }}

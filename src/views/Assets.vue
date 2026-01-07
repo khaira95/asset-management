@@ -2,7 +2,8 @@
 import { ref, onMounted, watch } from 'vue'
 import { supabase } from '@/lib/supabase'
 import type { Asset, Category, Staff } from '@/types/database'
-import { Package, Plus, Pencil, Trash2, Search, Filter } from 'lucide-vue-next'
+import { Package, Plus, Pencil, Trash2, Search, Filter, History, Clock } from 'lucide-vue-next'
+import type { AssetHistory } from '@/types/database'
 import Modal from '@/components/Modal.vue'
 
 interface AssetWithRelations extends Asset {
@@ -34,6 +35,12 @@ const form = ref({
   description: ''
 })
 const formError = ref('')
+
+// History modal state
+const showHistoryModal = ref(false)
+const historyAsset = ref<AssetWithRelations | null>(null)
+const assetHistory = ref<AssetHistory[]>([])
+const loadingHistory = ref(false)
 
 const statusConfig: Record<string, { label: string; class: string }> = {
   active: { label: 'Active', class: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
@@ -177,15 +184,36 @@ async function saveAsset() {
 
   try {
     if (editingId.value) {
+      // Get the old asset for tracking changes
+      const oldAsset = assets.value.find(a => a.id === editingId.value)
+
       const { error } = await supabase
         .from('assets')
         .update(payload)
         .eq('id', editingId.value)
 
       if (error) throw error
+
+      // Track changes
+      if (oldAsset) {
+        await trackChanges(editingId.value, oldAsset, payload)
+      }
     } else {
-      const { error } = await supabase.from('assets').insert(payload)
+      const { data, error } = await supabase.from('assets').insert(payload).select().single()
       if (error) throw error
+
+      // Track asset creation
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user && data) {
+        await supabase.from('asset_history').insert({
+          asset_id: data.id,
+          user_id: user.id,
+          field_name: 'asset',
+          old_value: null,
+          new_value: payload.asset_name,
+          change_type: 'create'
+        })
+      }
     }
 
     await fetchData()
@@ -216,6 +244,92 @@ async function deleteAsset(id: number) {
     assets.value = assets.value.filter(a => a.id !== id)
   } catch (error) {
     console.error('Error deleting asset:', error)
+  }
+}
+
+// History functions
+function formatTimeAgo(date: Date): string {
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  const diffMins = Math.floor(diffMs / 60000)
+  const diffHours = Math.floor(diffMs / 3600000)
+  const diffDays = Math.floor(diffMs / 86400000)
+
+  if (diffMins < 1) return 'Just now'
+  if (diffMins < 60) return `${diffMins} min ago`
+  if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`
+  if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`
+  return date.toLocaleDateString()
+}
+
+async function openHistory(asset: AssetWithRelations) {
+  historyAsset.value = asset
+  showHistoryModal.value = true
+  loadingHistory.value = true
+
+  try {
+    const { data, error } = await supabase
+      .from('asset_history')
+      .select('*')
+      .eq('asset_id', asset.id)
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+    assetHistory.value = data || []
+  } catch (error) {
+    console.error('Error fetching history:', error)
+    assetHistory.value = []
+  } finally {
+    loadingHistory.value = false
+  }
+}
+
+function closeHistoryModal() {
+  showHistoryModal.value = false
+  historyAsset.value = null
+  assetHistory.value = []
+}
+
+async function trackChanges(assetId: number, oldAsset: AssetWithRelations, newData: any) {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return
+
+  const changes: { field_name: string; old_value: string | null; new_value: string | null }[] = []
+
+  // Compare fields
+  if (oldAsset.status !== newData.status) {
+    changes.push({ field_name: 'status', old_value: oldAsset.status, new_value: newData.status })
+  }
+  if (oldAsset.staff_id !== newData.staff_id) {
+    const oldStaff = staffList.value.find(s => s.id === oldAsset.staff_id)?.name || null
+    const newStaff = staffList.value.find(s => s.id === newData.staff_id)?.name || null
+    changes.push({ field_name: 'assigned_to', old_value: oldStaff, new_value: newStaff })
+  }
+  if (oldAsset.category_id !== newData.category_id) {
+    const oldCat = categories.value.find(c => c.id === oldAsset.category_id)?.name || null
+    const newCat = categories.value.find(c => c.id === newData.category_id)?.name || null
+    changes.push({ field_name: 'category', old_value: oldCat, new_value: newCat })
+  }
+  if (oldAsset.serial_number !== newData.serial_number) {
+    changes.push({ field_name: 'serial_number', old_value: oldAsset.serial_number, new_value: newData.serial_number })
+  }
+  if (oldAsset.description !== newData.description) {
+    changes.push({ field_name: 'description', old_value: oldAsset.description, new_value: newData.description })
+  }
+  if (oldAsset.purchase_date !== newData.purchase_date) {
+    changes.push({ field_name: 'purchase_date', old_value: oldAsset.purchase_date, new_value: newData.purchase_date })
+  }
+
+  // Insert all changes
+  for (const change of changes) {
+    await supabase.from('asset_history').insert({
+      asset_id: assetId,
+      user_id: user.id,
+      field_name: change.field_name,
+      old_value: change.old_value,
+      new_value: change.new_value,
+      change_type: 'update'
+    })
   }
 }
 
@@ -320,6 +434,13 @@ onMounted(fetchData)
               </td>
               <td class="px-6 py-4">
                 <div class="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    @click="openHistory(asset)"
+                    class="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-all"
+                    title="View History"
+                  >
+                    <History class="w-4 h-4" />
+                  </button>
                   <button
                     @click="openEdit(asset)"
                     class="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-all"
@@ -462,6 +583,67 @@ onMounted(fetchData)
           </button>
         </div>
       </form>
+    </Modal>
+
+    <!-- History Modal -->
+    <Modal
+      :show="showHistoryModal"
+      :title="`History: ${historyAsset?.asset_name || ''}`"
+      size="lg"
+      @close="closeHistoryModal"
+    >
+      <div v-if="loadingHistory" class="py-8 text-center">
+        <div class="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full mx-auto mb-2"></div>
+        <p class="text-sm text-muted-foreground">Loading history...</p>
+      </div>
+
+      <div v-else-if="assetHistory.length === 0" class="py-12 text-center">
+        <History class="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
+        <p class="text-muted-foreground">No history recorded yet</p>
+        <p class="text-sm text-muted-foreground/70 mt-1">Changes will appear here after edits</p>
+      </div>
+
+      <div v-else class="space-y-3 max-h-96 overflow-y-auto">
+        <div
+          v-for="history in assetHistory"
+          :key="history.id"
+          class="flex items-start gap-3 p-3 bg-muted/30 rounded-xl"
+        >
+          <div class="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+            <Clock class="w-4 h-4 text-primary" />
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2 mb-1">
+              <span :class="[
+                'px-2 py-0.5 text-xs font-medium rounded',
+                history.change_type === 'create' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'
+              ]">
+                {{ history.change_type === 'create' ? 'Created' : 'Updated' }}
+              </span>
+              <span class="text-xs text-muted-foreground">{{ formatTimeAgo(new Date(history.created_at)) }}</span>
+            </div>
+            <p class="text-sm text-foreground">
+              <span class="font-medium capitalize">{{ history.field_name.replace('_', ' ') }}</span>
+              <template v-if="history.change_type === 'create'">
+                : {{ history.new_value }}
+              </template>
+              <template v-else>
+                changed from <span class="text-muted-foreground">{{ history.old_value || 'empty' }}</span>
+                to <span class="font-medium">{{ history.new_value || 'empty' }}</span>
+              </template>
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex justify-end pt-4 mt-4 border-t">
+        <button
+          @click="closeHistoryModal"
+          class="px-4 py-2.5 border rounded-xl font-medium text-foreground hover:bg-muted transition-all"
+        >
+          Close
+        </button>
+      </div>
     </Modal>
   </div>
 </template>

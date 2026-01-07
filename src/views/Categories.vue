@@ -2,10 +2,14 @@
 import { ref, onMounted } from 'vue'
 import { supabase } from '@/lib/supabase'
 import type { Category } from '@/types/database'
-import { FolderTree, Plus, Pencil, Trash2, Hash } from 'lucide-vue-next'
+import { FolderTree, Plus, Pencil, Trash2, Hash, Package } from 'lucide-vue-next'
 import Modal from '@/components/Modal.vue'
 
-const categories = ref<Category[]>([])
+interface CategoryWithCount extends Category {
+  asset_count?: number
+}
+
+const categories = ref<CategoryWithCount[]>([])
 const loading = ref(true)
 const saving = ref(false)
 
@@ -42,13 +46,28 @@ function closeModal() {
 
 async function fetchCategories() {
   try {
-    const { data, error } = await supabase
-      .from('categories')
-      .select('*')
-      .order('name')
+    const [catRes, assetsRes] = await Promise.all([
+      supabase.from('categories').select('*').order('name'),
+      supabase.from('assets').select('category_id')
+    ])
 
-    if (error) throw error
-    categories.value = data || []
+    if (catRes.error) throw catRes.error
+
+    // Count assets per category
+    const assetCounts: Record<number, number> = {}
+    if (assetsRes.data) {
+      assetsRes.data.forEach(asset => {
+        if (asset.category_id) {
+          assetCounts[asset.category_id] = (assetCounts[asset.category_id] || 0) + 1
+        }
+      })
+    }
+
+    // Add asset count to each category
+    categories.value = (catRes.data || []).map(cat => ({
+      ...cat,
+      asset_count: assetCounts[cat.id] || 0
+    }))
   } catch (error) {
     console.error('Error fetching categories:', error)
   } finally {
@@ -189,10 +208,15 @@ onMounted(fetchCategories)
               </span>
             </div>
             <h3 class="font-semibold text-foreground text-lg">{{ category.name }}</h3>
+            <p class="flex items-center gap-1.5 text-sm mt-2">
+              <Package class="w-3.5 h-3.5 text-primary" />
+              <span :class="category.asset_count > 0 ? 'text-foreground font-medium' : 'text-muted-foreground'">
+                {{ category.asset_count }} asset{{ category.asset_count !== 1 ? 's' : '' }}
+              </span>
+            </p>
             <p v-if="category.description" class="text-sm text-muted-foreground mt-2 line-clamp-2">
               {{ category.description }}
             </p>
-            <p v-else class="text-sm text-muted-foreground/50 mt-2 italic">No description</p>
           </div>
           <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-4">
             <button

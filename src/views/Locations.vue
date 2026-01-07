@@ -2,10 +2,14 @@
 import { ref, onMounted } from 'vue'
 import { supabase } from '@/lib/supabase'
 import type { Location } from '@/types/database'
-import { MapPin, Plus, Pencil, Trash2, Building2 } from 'lucide-vue-next'
+import { MapPin, Plus, Pencil, Trash2, Building2, Users } from 'lucide-vue-next'
 import Modal from '@/components/Modal.vue'
 
-const locations = ref<Location[]>([])
+interface LocationWithCount extends Location {
+  staff_count?: number
+}
+
+const locations = ref<LocationWithCount[]>([])
 const loading = ref(true)
 const saving = ref(false)
 
@@ -38,13 +42,28 @@ function closeModal() {
 
 async function fetchLocations() {
   try {
-    const { data, error } = await supabase
-      .from('locations')
-      .select('*')
-      .order('name')
+    const [locRes, staffRes] = await Promise.all([
+      supabase.from('locations').select('*').order('name'),
+      supabase.from('staff').select('location_id')
+    ])
 
-    if (error) throw error
-    locations.value = data || []
+    if (locRes.error) throw locRes.error
+
+    // Count staff per location
+    const staffCounts: Record<number, number> = {}
+    if (staffRes.data) {
+      staffRes.data.forEach(staff => {
+        if (staff.location_id) {
+          staffCounts[staff.location_id] = (staffCounts[staff.location_id] || 0) + 1
+        }
+      })
+    }
+
+    // Add staff count to each location
+    locations.value = (locRes.data || []).map(loc => ({
+      ...loc,
+      staff_count: staffCounts[loc.id] || 0
+    }))
   } catch (error) {
     console.error('Error fetching locations:', error)
   } finally {
@@ -167,7 +186,15 @@ onMounted(fetchLocations)
             <div class="w-10 h-10 rounded-xl bg-sky-50 flex items-center justify-center flex-shrink-0">
               <Building2 class="w-5 h-5 text-sky-600" />
             </div>
-            <span class="font-medium text-foreground truncate">{{ location.name }}</span>
+            <div class="min-w-0">
+              <span class="font-medium text-foreground truncate block">{{ location.name }}</span>
+              <span class="flex items-center gap-1 text-xs mt-0.5">
+                <Users class="w-3 h-3 text-violet-500" />
+                <span :class="location.staff_count > 0 ? 'text-foreground' : 'text-muted-foreground'">
+                  {{ location.staff_count }} staff
+                </span>
+              </span>
+            </div>
           </div>
           <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
             <button
