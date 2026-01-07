@@ -262,6 +262,17 @@ function formatTimeAgo(date: Date): string {
   return date.toLocaleDateString()
 }
 
+function formatDateTime(date: Date): string {
+  return date.toLocaleString('en-MY', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  })
+}
+
 async function openHistory(asset: AssetWithRelations) {
   historyAsset.value = asset
   showHistoryModal.value = true
@@ -291,45 +302,72 @@ function closeHistoryModal() {
 }
 
 async function trackChanges(assetId: number, oldAsset: AssetWithRelations, newData: any) {
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      console.error('No user found for tracking changes')
+      return
+    }
 
-  const changes: { field_name: string; old_value: string | null; new_value: string | null }[] = []
+    const changes: { field_name: string; old_value: string | null; new_value: string | null }[] = []
 
-  // Compare fields
-  if (oldAsset.status !== newData.status) {
-    changes.push({ field_name: 'status', old_value: oldAsset.status, new_value: newData.status })
-  }
-  if (oldAsset.staff_id !== newData.staff_id) {
-    const oldStaff = staffList.value.find(s => s.id === oldAsset.staff_id)?.name || null
-    const newStaff = staffList.value.find(s => s.id === newData.staff_id)?.name || null
-    changes.push({ field_name: 'assigned_to', old_value: oldStaff, new_value: newStaff })
-  }
-  if (oldAsset.category_id !== newData.category_id) {
-    const oldCat = categories.value.find(c => c.id === oldAsset.category_id)?.name || null
-    const newCat = categories.value.find(c => c.id === newData.category_id)?.name || null
-    changes.push({ field_name: 'category', old_value: oldCat, new_value: newCat })
-  }
-  if (oldAsset.serial_number !== newData.serial_number) {
-    changes.push({ field_name: 'serial_number', old_value: oldAsset.serial_number, new_value: newData.serial_number })
-  }
-  if (oldAsset.description !== newData.description) {
-    changes.push({ field_name: 'description', old_value: oldAsset.description, new_value: newData.description })
-  }
-  if (oldAsset.purchase_date !== newData.purchase_date) {
-    changes.push({ field_name: 'purchase_date', old_value: oldAsset.purchase_date, new_value: newData.purchase_date })
-  }
+    // Compare fields - use String() for consistent comparison
+    const oldStatus = String(oldAsset.status || '')
+    const newStatus = String(newData.status || '')
+    if (oldStatus !== newStatus) {
+      changes.push({ field_name: 'status', old_value: oldAsset.status, new_value: newData.status })
+    }
 
-  // Insert all changes
-  for (const change of changes) {
-    await supabase.from('asset_history').insert({
-      asset_id: assetId,
-      user_id: user.id,
-      field_name: change.field_name,
-      old_value: change.old_value,
-      new_value: change.new_value,
-      change_type: 'update'
-    })
+    const oldStaffId = oldAsset.staff_id ? Number(oldAsset.staff_id) : null
+    const newStaffId = newData.staff_id ? Number(newData.staff_id) : null
+    if (oldStaffId !== newStaffId) {
+      const oldStaff = staffList.value.find(s => s.id === oldStaffId)?.name || null
+      const newStaff = staffList.value.find(s => s.id === newStaffId)?.name || null
+      changes.push({ field_name: 'assigned_to', old_value: oldStaff, new_value: newStaff })
+    }
+
+    const oldCatId = oldAsset.category_id ? Number(oldAsset.category_id) : null
+    const newCatId = newData.category_id ? Number(newData.category_id) : null
+    if (oldCatId !== newCatId) {
+      const oldCat = categories.value.find(c => c.id === oldCatId)?.name || null
+      const newCat = categories.value.find(c => c.id === newCatId)?.name || null
+      changes.push({ field_name: 'category', old_value: oldCat, new_value: newCat })
+    }
+
+    const oldSerial = String(oldAsset.serial_number || '')
+    const newSerial = String(newData.serial_number || '')
+    if (oldSerial !== newSerial) {
+      changes.push({ field_name: 'serial_number', old_value: oldAsset.serial_number, new_value: newData.serial_number })
+    }
+
+    const oldDesc = String(oldAsset.description || '')
+    const newDesc = String(newData.description || '')
+    if (oldDesc !== newDesc) {
+      changes.push({ field_name: 'description', old_value: oldAsset.description, new_value: newData.description })
+    }
+
+    const oldDate = String(oldAsset.purchase_date || '')
+    const newDate = String(newData.purchase_date || '')
+    if (oldDate !== newDate) {
+      changes.push({ field_name: 'purchase_date', old_value: oldAsset.purchase_date, new_value: newData.purchase_date })
+    }
+
+    // Insert all changes
+    for (const change of changes) {
+      const { error } = await supabase.from('asset_history').insert({
+        asset_id: assetId,
+        user_id: user.id,
+        field_name: change.field_name,
+        old_value: change.old_value,
+        new_value: change.new_value,
+        change_type: 'update'
+      })
+      if (error) {
+        console.error('Error inserting history:', error)
+      }
+    }
+  } catch (error) {
+    console.error('Error tracking changes:', error)
   }
 }
 
@@ -613,14 +651,17 @@ onMounted(fetchData)
             <Clock class="w-4 h-4 text-primary" />
           </div>
           <div class="flex-1 min-w-0">
-            <div class="flex items-center gap-2 mb-1">
+            <div class="flex items-center justify-between gap-2 mb-1">
               <span :class="[
                 'px-2 py-0.5 text-xs font-medium rounded',
                 history.change_type === 'create' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'
               ]">
                 {{ history.change_type === 'create' ? 'Created' : 'Updated' }}
               </span>
-              <span class="text-xs text-muted-foreground">{{ formatTimeAgo(new Date(history.created_at)) }}</span>
+              <div class="text-right">
+                <p class="text-xs font-medium text-foreground">{{ formatDateTime(new Date(history.created_at)) }}</p>
+                <p class="text-xs text-muted-foreground">{{ formatTimeAgo(new Date(history.created_at)) }}</p>
+              </div>
             </div>
             <p class="text-sm text-foreground">
               <span class="font-medium capitalize">{{ history.field_name.replace('_', ' ') }}</span>
