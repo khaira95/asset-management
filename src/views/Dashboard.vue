@@ -7,11 +7,8 @@ import {
   Users,
   MapPin,
   Key,
-  AlertTriangle,
   ArrowUpRight,
   Clock,
-  CheckCircle2,
-  Wrench,
   FolderTree
 } from 'lucide-vue-next'
 
@@ -327,16 +324,16 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="p-6 lg:p-8">
+  <div class="p-4 lg:p-6">
     <!-- Header -->
-    <div class="mb-8">
-      <div class="flex items-center gap-3 mb-2">
-        <div class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-          <LayoutDashboard class="w-5 h-5 text-primary" />
+    <div class="mb-4">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
+          <LayoutDashboard class="w-4 h-4 text-primary" />
         </div>
         <div>
-          <h1 class="text-2xl font-semibold text-foreground tracking-tight">Dashboard</h1>
-          <p class="text-sm text-muted-foreground">Overview of your asset inventory</p>
+          <h1 class="text-xl font-semibold text-foreground tracking-tight">Dashboard</h1>
+          <p class="text-xs text-muted-foreground">Asset inventory overview</p>
         </div>
       </div>
     </div>
@@ -348,77 +345,75 @@ onMounted(() => {
 
     <div v-else>
       <!-- Stats grid - 4 columns -->
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 stagger-children">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 stagger-children">
         <div
           v-for="stat in statCards"
           :key="stat.label"
-          class="group bg-card border rounded-2xl p-4 hover:shadow-lg hover:shadow-black/5 hover:-translate-y-0.5 transition-all duration-300 cursor-default"
+          class="group bg-card border rounded-xl p-3 hover:shadow-lg hover:shadow-black/5 hover:-translate-y-0.5 transition-all duration-300 cursor-default"
         >
-          <div class="flex items-center justify-between mb-3">
-            <div :class="['w-10 h-10 rounded-xl flex items-center justify-center', stat.iconBg]">
-              <component :is="stat.icon" class="w-5 h-5 text-white" />
+          <div class="flex items-center justify-between mb-2">
+            <div :class="['w-8 h-8 rounded-lg flex items-center justify-center', stat.iconBg]">
+              <component :is="stat.icon" class="w-4 h-4 text-white" />
             </div>
-            <ArrowUpRight class="w-4 h-4 text-muted-foreground/30 group-hover:text-primary transition-colors" />
+            <ArrowUpRight class="w-3.5 h-3.5 text-muted-foreground/30 group-hover:text-primary transition-colors" />
           </div>
-          <p class="text-2xl font-semibold text-foreground tracking-tight">{{ stat.value }}</p>
-          <p class="text-xs text-muted-foreground mt-1">{{ stat.label }}</p>
+          <p class="text-xl font-semibold text-foreground tracking-tight">{{ stat.value }}</p>
+          <p class="text-[11px] text-muted-foreground">{{ stat.label }}</p>
         </div>
       </div>
 
       <!-- Asset Status Overview - Full Width -->
-      <div class="bg-card border rounded-2xl p-6 mt-6">
-        <div class="flex flex-col lg:flex-row lg:items-start gap-8">
+      <div class="bg-card border rounded-2xl p-5 mt-4">
+        <div class="flex flex-col lg:flex-row lg:items-center gap-6">
           <!-- Left: Donut Chart -->
-          <div class="flex-shrink-0">
-            <h3 class="font-semibold text-foreground mb-1">Asset Status</h3>
-            <p class="text-sm text-muted-foreground mb-6">Current distribution</p>
-
-            <div class="flex justify-center">
-              <div class="relative w-44 h-44">
-                <!-- Background circle -->
-                <svg class="w-full h-full -rotate-90" viewBox="0 0 100 100">
-                  <circle
-                    cx="50" cy="50" r="40"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="10"
-                    class="text-muted"
-                  />
-                  <!-- Active segment -->
-                  <circle
-                    cx="50" cy="50" r="40"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="10"
-                    stroke-linecap="round"
-                    class="text-emerald-500"
-                    :stroke-dasharray="`${assetDistribution[0].percent * 2.51} 251`"
-                  />
-                </svg>
-                <!-- Center text -->
-                <div class="absolute inset-0 flex flex-col items-center justify-center">
-                  <span class="text-3xl font-bold text-foreground">{{ stats.totalAssets }}</span>
-                  <span class="text-sm text-muted-foreground">Total Assets</span>
-                </div>
+          <div class="flex-shrink-0 flex items-center gap-4">
+            <div class="relative w-28 h-28">
+              <!-- Background circle -->
+              <svg class="w-full h-full -rotate-90" viewBox="0 0 100 100">
+                <circle
+                  cx="50" cy="50" r="40"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="12"
+                  class="text-muted"
+                />
+                <!-- Active segment -->
+                <circle
+                  cx="50" cy="50" r="40"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="12"
+                  stroke-linecap="round"
+                  class="text-emerald-500"
+                  :stroke-dasharray="`${assetDistribution[0].percent * 2.51} 251`"
+                />
+              </svg>
+              <!-- Center text -->
+              <div class="absolute inset-0 flex flex-col items-center justify-center">
+                <span class="text-2xl font-bold text-foreground">{{ stats.totalAssets }}</span>
+                <span class="text-[10px] text-muted-foreground">Total</span>
               </div>
+            </div>
+            <div>
+              <h3 class="font-semibold text-foreground">Asset Status</h3>
+              <p class="text-xs text-muted-foreground">Current distribution</p>
             </div>
           </div>
 
           <!-- Right: Status Breakdown Cards -->
           <div class="flex-1">
-            <h4 class="font-medium text-foreground mb-4">Status Breakdown</h4>
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
               <div
                 v-for="item in assetDistribution"
                 :key="item.label"
-                class="p-4 rounded-xl border bg-muted/30"
+                class="p-3 rounded-xl border bg-muted/30"
               >
-                <div class="flex items-center gap-2 mb-2">
-                  <div :class="['w-3 h-3 rounded-full', item.color]" />
-                  <span class="text-sm text-muted-foreground">{{ item.label }}</span>
+                <div class="flex items-center gap-2 mb-1">
+                  <div :class="['w-2.5 h-2.5 rounded-full', item.color]" />
+                  <span class="text-xs text-muted-foreground">{{ item.label }}</span>
                 </div>
-                <p class="text-2xl font-bold text-foreground">{{ item.value }}</p>
-                <p class="text-xs text-muted-foreground">{{ item.percent }}% of total</p>
+                <p class="text-xl font-bold text-foreground">{{ item.value }}</p>
+                <p class="text-[10px] text-muted-foreground">{{ item.percent }}%</p>
               </div>
             </div>
           </div>
@@ -426,38 +421,38 @@ onMounted(() => {
       </div>
 
       <!-- Asset Trends Chart -->
-      <div class="bg-card border rounded-2xl p-6 mt-6">
-        <div class="flex items-start justify-between mb-4">
+      <div class="bg-card border rounded-2xl p-5 mt-4">
+        <div class="flex items-start justify-between mb-3">
           <div>
-            <h3 class="font-semibold text-foreground mb-1">Asset Trends</h3>
-            <p class="text-sm text-muted-foreground">Monthly breakdown by status (based on status change history)</p>
+            <h3 class="font-semibold text-foreground">Asset Trends</h3>
+            <p class="text-xs text-muted-foreground">Monthly status breakdown</p>
           </div>
           <!-- Legend -->
-          <div class="flex flex-wrap gap-3 text-xs">
-            <div class="flex items-center gap-1.5">
-              <div class="w-3 h-3 rounded-sm bg-emerald-500"></div>
+          <div class="flex flex-wrap gap-2 text-[10px]">
+            <div class="flex items-center gap-1">
+              <div class="w-2.5 h-2.5 rounded-sm bg-emerald-500"></div>
               <span class="text-muted-foreground">Active</span>
             </div>
-            <div class="flex items-center gap-1.5">
-              <div class="w-3 h-3 rounded-sm bg-amber-500"></div>
+            <div class="flex items-center gap-1">
+              <div class="w-2.5 h-2.5 rounded-sm bg-amber-500"></div>
               <span class="text-muted-foreground">Maintenance</span>
             </div>
-            <div class="flex items-center gap-1.5">
-              <div class="w-3 h-3 rounded-sm bg-gray-400"></div>
+            <div class="flex items-center gap-1">
+              <div class="w-2.5 h-2.5 rounded-sm bg-gray-400"></div>
               <span class="text-muted-foreground">Inactive</span>
             </div>
-            <div class="flex items-center gap-1.5">
-              <div class="w-3 h-3 rounded-sm bg-red-500"></div>
+            <div class="flex items-center gap-1">
+              <div class="w-2.5 h-2.5 rounded-sm bg-red-500"></div>
               <span class="text-muted-foreground">Disposed</span>
             </div>
           </div>
         </div>
 
         <!-- Stacked Bar Chart -->
-        <div v-if="monthlyData.length === 0" class="flex items-center justify-center h-56">
+        <div v-if="monthlyData.length === 0" class="flex items-center justify-center h-36">
           <p class="text-sm text-muted-foreground">Loading...</p>
         </div>
-        <div v-else class="flex items-end justify-between gap-3 h-56">
+        <div v-else class="flex items-end justify-between gap-3 h-36">
           <div
             v-for="data in monthlyData"
             :key="`${data.month}-${data.year}`"
@@ -516,102 +511,31 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- Bottom Row -->
-      <div class="grid lg:grid-cols-2 gap-6 mt-6">
-        <!-- Recent Activity -->
-        <div class="bg-card border rounded-2xl p-6">
-          <h3 class="font-semibold text-foreground mb-1">Recent Activity</h3>
-          <p class="text-sm text-muted-foreground mb-4">Latest updates in your inventory</p>
-
-          <div v-if="recentActivities.length === 0" class="text-center py-8">
-            <Clock class="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
-            <p class="text-sm text-muted-foreground">No recent activity yet</p>
-          </div>
-          <div v-else class="space-y-4">
-            <div
-              v-for="(activity, index) in recentActivities"
-              :key="index"
-              class="flex items-center gap-4 p-3 rounded-xl hover:bg-muted/50 transition-colors"
-            >
-              <div :class="['w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0', activity.iconBg]">
-                <component :is="activity.icon" class="w-5 h-5 text-white" />
-              </div>
-              <div class="flex-1 min-w-0">
-                <p class="text-sm font-medium text-foreground">{{ activity.action }}</p>
-                <p class="text-sm text-muted-foreground truncate">{{ activity.item }}</p>
-              </div>
-              <div class="flex items-center gap-1 text-xs text-muted-foreground">
-                <Clock class="w-3 h-3" />
-                {{ activity.time }}
-              </div>
-            </div>
+      <!-- Recent Activity - Full Width -->
+      <div class="bg-card border rounded-2xl p-5 mt-4">
+        <div class="flex items-center justify-between mb-3">
+          <div>
+            <h3 class="font-semibold text-foreground">Recent Activity</h3>
+            <p class="text-sm text-muted-foreground">Latest updates</p>
           </div>
         </div>
 
-        <!-- Quick Stats / Alerts -->
-        <div class="bg-card border rounded-2xl p-6">
-          <h3 class="font-semibold text-foreground mb-1">Quick Overview</h3>
-          <p class="text-sm text-muted-foreground mb-4">Key metrics at a glance</p>
-
-          <div class="space-y-4">
-            <!-- Asset Health -->
-            <div class="p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
-              <div class="flex items-center gap-3">
-                <CheckCircle2 class="w-5 h-5 text-emerald-600" />
-                <div>
-                  <p class="font-medium text-emerald-800">Asset Health</p>
-                  <p class="text-sm text-emerald-700">
-                    {{ stats.totalAssets > 0 ? Math.round((stats.activeAssets / stats.totalAssets) * 100) : 0 }}% of assets are active
-                  </p>
-                </div>
-              </div>
+        <div v-if="recentActivities.length === 0" class="text-center py-6">
+          <Clock class="w-6 h-6 text-muted-foreground/30 mx-auto mb-2" />
+          <p class="text-sm text-muted-foreground">No recent activity yet</p>
+        </div>
+        <div v-else class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div
+            v-for="(activity, index) in recentActivities"
+            :key="index"
+            class="flex items-center gap-3 p-3 rounded-xl bg-muted/30 hover:bg-muted/50 transition-colors"
+          >
+            <div :class="['w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0', activity.iconBg]">
+              <component :is="activity.icon" class="w-4 h-4 text-white" />
             </div>
-
-            <!-- License Warning -->
-            <div v-if="stats.expiringLicenses > 0" class="p-4 bg-amber-50 border border-amber-200 rounded-xl">
-              <div class="flex items-center gap-3">
-                <AlertTriangle class="w-5 h-5 text-amber-600" />
-                <div>
-                  <p class="font-medium text-amber-800">License Alert</p>
-                  <p class="text-sm text-amber-700">{{ stats.expiringLicenses }} license(s) expiring soon</p>
-                </div>
-              </div>
-            </div>
-
-            <!-- Maintenance -->
-            <div v-if="stats.maintenanceAssets > 0" class="p-4 bg-sky-50 border border-sky-200 rounded-xl">
-              <div class="flex items-center gap-3">
-                <Wrench class="w-5 h-5 text-sky-600" />
-                <div>
-                  <p class="font-medium text-sky-800">Under Maintenance</p>
-                  <p class="text-sm text-sky-700">{{ stats.maintenanceAssets }} asset(s) being serviced</p>
-                </div>
-              </div>
-            </div>
-
-            <!-- All Good -->
-            <div v-if="stats.expiringLicenses === 0 && stats.maintenanceAssets === 0" class="p-4 bg-muted/50 border rounded-xl">
-              <div class="flex items-center gap-3">
-                <CheckCircle2 class="w-5 h-5 text-muted-foreground" />
-                <div>
-                  <p class="font-medium text-foreground">All Clear</p>
-                  <p class="text-sm text-muted-foreground">No pending alerts or issues</p>
-                </div>
-              </div>
-            </div>
-
-            <!-- Utilization -->
-            <div class="p-4 border rounded-xl">
-              <div class="flex items-center justify-between mb-2">
-                <span class="text-sm text-muted-foreground">Staff Coverage</span>
-                <span class="text-sm font-medium text-foreground">{{ stats.totalStaff }} staff</span>
-              </div>
-              <div class="h-2 bg-muted rounded-full overflow-hidden">
-                <div
-                  class="h-full bg-violet-500 rounded-full transition-all duration-500"
-                  :style="{ width: `${Math.min((stats.totalStaff / 10) * 100, 100)}%` }"
-                />
-              </div>
+            <div class="flex-1 min-w-0">
+              <p class="text-xs font-medium text-foreground truncate">{{ activity.item }}</p>
+              <p class="text-xs text-muted-foreground">{{ activity.time }}</p>
             </div>
           </div>
         </div>
