@@ -102,13 +102,17 @@ async function fetchMonthlyData() {
       supabase.from('asset_history')
         .select('asset_id, new_value, effective_date, created_at')
         .eq('field_name', 'status')
-        .order('effective_date', { ascending: true })
     ])
 
     if (assetsRes.error) throw assetsRes.error
+    if (historyRes.error) {
+      console.warn('History query error:', historyRes.error)
+    }
 
     const assets = assetsRes.data || []
     const history = historyRes.data || []
+
+    console.log('Assets count:', assets.length, 'History count:', history.length)
 
     // Get last 6 months
     const months: MonthlyData[] = []
@@ -185,6 +189,7 @@ async function fetchMonthlyData() {
       })
     })
 
+    console.log('Monthly data result:', months)
     monthlyData.value = months
   } catch (error) {
     console.error('Error fetching monthly data:', error)
