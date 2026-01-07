@@ -13,7 +13,8 @@ import {
   Clock,
   CheckCircle2,
   XCircle,
-  Wrench
+  Wrench,
+  FolderTree
 } from 'lucide-vue-next'
 
 interface Stats {
@@ -104,13 +105,121 @@ const monthlyData = [
 
 const maxMonthly = computed(() => Math.max(...monthlyData.map(d => d.assets)))
 
-// Dummy recent activities
-const recentActivities = [
-  { action: 'Asset added', item: 'MacBook Pro 14"', time: '2 hours ago', icon: Package, iconBg: 'bg-emerald-500' },
-  { action: 'Staff assigned', item: 'Ahmad to Dell Monitor', time: '5 hours ago', icon: Users, iconBg: 'bg-violet-500' },
-  { action: 'License expiring', item: 'Adobe Creative Cloud', time: '1 day ago', icon: AlertTriangle, iconBg: 'bg-amber-500' },
-  { action: 'Maintenance', item: 'HP Printer #3', time: '2 days ago', icon: Wrench, iconBg: 'bg-sky-500' },
-]
+// Recent activities from database
+interface Activity {
+  action: string
+  item: string
+  time: string
+  icon: any
+  iconBg: string
+  timestamp: Date
+}
+
+const recentActivities = ref<Activity[]>([])
+
+function formatTimeAgo(date: Date): string {
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  const diffMins = Math.floor(diffMs / 60000)
+  const diffHours = Math.floor(diffMs / 3600000)
+  const diffDays = Math.floor(diffMs / 86400000)
+
+  if (diffMins < 1) return 'Just now'
+  if (diffMins < 60) return `${diffMins} min ago`
+  if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`
+  if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`
+  return date.toLocaleDateString()
+}
+
+async function fetchRecentActivities() {
+  try {
+    const [assetsRes, staffRes, locationsRes, categoriesRes, licensesRes] = await Promise.all([
+      supabase.from('assets').select('asset_name, created_at, status').order('created_at', { ascending: false }).limit(5),
+      supabase.from('staff').select('name, created_at').order('created_at', { ascending: false }).limit(3),
+      supabase.from('locations').select('name, created_at').order('created_at', { ascending: false }).limit(3),
+      supabase.from('categories').select('name, created_at').order('created_at', { ascending: false }).limit(3),
+      supabase.from('licenses').select('name, created_at, expiration_date').order('created_at', { ascending: false }).limit(3)
+    ])
+
+    const activities: Activity[] = []
+
+    // Assets
+    if (assetsRes.data) {
+      assetsRes.data.forEach(a => {
+        activities.push({
+          action: 'Asset added',
+          item: a.asset_name,
+          time: formatTimeAgo(new Date(a.created_at)),
+          icon: Package,
+          iconBg: 'bg-emerald-500',
+          timestamp: new Date(a.created_at)
+        })
+      })
+    }
+
+    // Staff
+    if (staffRes.data) {
+      staffRes.data.forEach(s => {
+        activities.push({
+          action: 'Staff added',
+          item: s.name,
+          time: formatTimeAgo(new Date(s.created_at)),
+          icon: Users,
+          iconBg: 'bg-violet-500',
+          timestamp: new Date(s.created_at)
+        })
+      })
+    }
+
+    // Locations
+    if (locationsRes.data) {
+      locationsRes.data.forEach(l => {
+        activities.push({
+          action: 'Location added',
+          item: l.name,
+          time: formatTimeAgo(new Date(l.created_at)),
+          icon: MapPin,
+          iconBg: 'bg-sky-500',
+          timestamp: new Date(l.created_at)
+        })
+      })
+    }
+
+    // Categories
+    if (categoriesRes.data) {
+      categoriesRes.data.forEach(c => {
+        activities.push({
+          action: 'Category added',
+          item: c.name,
+          time: formatTimeAgo(new Date(c.created_at)),
+          icon: FolderTree,
+          iconBg: 'bg-amber-500',
+          timestamp: new Date(c.created_at)
+        })
+      })
+    }
+
+    // Licenses
+    if (licensesRes.data) {
+      licensesRes.data.forEach(l => {
+        activities.push({
+          action: 'License added',
+          item: l.name,
+          time: formatTimeAgo(new Date(l.created_at)),
+          icon: Key,
+          iconBg: 'bg-rose-500',
+          timestamp: new Date(l.created_at)
+        })
+      })
+    }
+
+    // Sort by timestamp (newest first) and take top 6
+    activities.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+    recentActivities.value = activities.slice(0, 6)
+  } catch (error) {
+    console.error('Error fetching recent activities:', error)
+  }
+}
 
 async function fetchStats() {
   try {
@@ -147,7 +256,10 @@ async function fetchStats() {
   }
 }
 
-onMounted(fetchStats)
+onMounted(() => {
+  fetchStats()
+  fetchRecentActivities()
+})
 </script>
 
 <template>
@@ -278,7 +390,11 @@ onMounted(fetchStats)
           <h3 class="font-semibold text-foreground mb-1">Recent Activity</h3>
           <p class="text-sm text-muted-foreground mb-4">Latest updates in your inventory</p>
 
-          <div class="space-y-4">
+          <div v-if="recentActivities.length === 0" class="text-center py-8">
+            <Clock class="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
+            <p class="text-sm text-muted-foreground">No recent activity yet</p>
+          </div>
+          <div v-else class="space-y-4">
             <div
               v-for="(activity, index) in recentActivities"
               :key="index"

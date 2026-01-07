@@ -80,7 +80,7 @@ onMounted(async () => {
         <div class="w-7 h-7 rounded-lg bg-primary flex items-center justify-center">
           <Package class="w-4 h-4 text-primary-foreground" />
         </div>
-        <span class="font-semibold text-foreground text-sm">Asset Manager</span>
+        <span class="font-semibold text-foreground text-sm">KLSB Asset Manager</span>
       </div>
     </header>
 
@@ -108,7 +108,7 @@ onMounted(async () => {
               <Package class="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 class="text-lg font-semibold text-sidebar-foreground tracking-tight">Asset Manager</h1>
+              <h1 class="text-lg font-semibold text-sidebar-foreground tracking-tight">KLSB Asset Manager</h1>
               <p class="text-xs text-sidebar-foreground/50">Inventory System</p>
             </div>
           </div>
